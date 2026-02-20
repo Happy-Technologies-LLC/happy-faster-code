@@ -8,9 +8,9 @@
 
 Every AI coding CLI today — Claude Code, Gemini CLI, Codex — works the same way: read files, grep for text, hope the LLM figures out the structure. They treat your codebase as a bag of text files.
 
-HappyFasterCode is different. Before the LLM sees a single token, it builds a **full structural graph** of your entire codebase: every function call, every import chain, every class hierarchy, every dependency edge. Then it gives the LLM **13 graph-aware tools** to navigate that structure — not just `read_file` and `grep`, but `find_callers`, `find_callees`, `get_dependencies`, `get_subclasses`, `find_path` between any two symbols, and more.
+HappyFasterCode is different. Before the LLM sees a single token, it builds a **full structural graph** of your entire codebase: every function call, every import chain, every class hierarchy, every dependency edge. Then it gives the LLM **18 tools** — 13 graph-aware navigation tools plus full read/write/execute capabilities — making it a complete coding agent that truly understands your code's structure.
 
-The result: the LLM doesn't guess at relationships. It **knows** them.
+The result: the LLM doesn't guess at relationships. It **knows** them. And it can act on that knowledge — editing files, running builds, executing tests, and committing changes.
 
 ## Why This Exists
 
@@ -31,9 +31,11 @@ HappyFasterCode solves this with a Rust-native indexing engine that builds a dir
 | **Query latency** | Sub-millisecond graph lookups | Re-reads files each time |
 | **LLM provider** | Anthropic, OpenAI, or any OpenAI-compatible endpoint | Usually locked to one |
 
-## The 13 Structural Tools
+## The 18 Agent Tools
 
-These are the tools the LLM has access to — far beyond file reading:
+Every other AI CLI gives the LLM `read_file` and `grep`. HappyFasterCode gives it a full code graph **plus** write and execute capabilities:
+
+### Code Graph Navigation (unique to HappyFasterCode)
 
 | Tool | What it does |
 |------|-------------|
@@ -48,8 +50,23 @@ These are the tools the LLM has access to — far beyond file reading:
 | `find_path` | Shortest path between any two symbols through the code graph |
 | `get_related` | All symbols within N hops in the graph (multi-edge traversal) |
 | `repo_stats` | Node, edge, and file counts for the indexed graph |
-| `list_files` | All indexed files in the repository |
-| `read_file` | Raw file contents |
+
+### Read & Search
+
+| Tool | What it does |
+|------|-------------|
+| `read_file` | Read file contents with line numbers, offset, and limit |
+| `list_files` | All indexed source files in the repository |
+| `list_directory` | Browse directory contents |
+| `grep_files` | Regex search across file contents (uses ripgrep when available) |
+
+### Write & Execute
+
+| Tool | What it does |
+|------|-------------|
+| `write_file` | Create or overwrite files (auto-creates parent directories) |
+| `edit_file` | Precise string replacement — surgical edits without rewriting entire files |
+| `bash` | Execute any shell command: builds, tests, git, linters, package managers |
 
 ## Quick Start
 

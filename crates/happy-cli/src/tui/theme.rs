@@ -1,7 +1,12 @@
 use ratatui::style::{Color, Modifier, Style};
 
-/// Brand blue from the HappyFasterCode logo: rgb(80, 179, 238)
-const BRAND_BLUE: Color = Color::Rgb(80, 179, 238);
+/// Brand blue from logo SVG (#5ec1fb)
+const BRAND_BLUE: Color = Color::Rgb(94, 193, 251);
+/// Brand coral from logo SVG (#ff7564)
+const BRAND_CORAL: Color = Color::Rgb(255, 117, 100);
+
+pub const LOGO_BLUE: Style = Style::new().fg(BRAND_BLUE).add_modifier(Modifier::BOLD);
+pub const LOGO_CORAL: Style = Style::new().fg(BRAND_CORAL).add_modifier(Modifier::BOLD);
 
 pub const BORDER: Style = Style::new().fg(Color::DarkGray);
 pub const BORDER_FOCUSED: Style = Style::new().fg(BRAND_BLUE);

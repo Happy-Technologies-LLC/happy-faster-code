@@ -82,9 +82,14 @@ enum Focus {
     Preview,
 }
 
+/// The startup logo (plain text, no ANSI codes — colored via ratatui styles).
+/// First 6 lines are HAPPY (blue), remaining lines are CODE (orange).
+const LOGO: &str = include_str!("../../../../logo.txt");
+
 /// A chat entry in the conversation.
 #[derive(Debug, Clone)]
 enum ChatEntry {
+    Logo,
     User(String),
     AssistantText(String),
     ToolCall(String),
@@ -135,15 +140,14 @@ impl AppState {
         }
 
         let welcome = format!(
-            "Welcome to HappyFasterCode!\n\
-             Indexed {} — ask me anything about this codebase.\n\
+            "Indexed {} — ask me anything about this codebase.\n\
              Type /help for commands, Tab to switch panels.",
             repo_stats
         );
 
         Self {
             focus: Focus::Chat,
-            chat_entries: vec![ChatEntry::AssistantText(welcome)],
+            chat_entries: vec![ChatEntry::Logo, ChatEntry::AssistantText(welcome)],
             chat_scroll: 0,
             current_streaming: String::new(),
             is_streaming: false,
@@ -674,6 +678,17 @@ fn render_chat(f: &mut Frame, state: &AppState, area: Rect) {
 
     for entry in &state.chat_entries {
         match entry {
+            ChatEntry::Logo => {
+                for (i, line) in LOGO.lines().enumerate() {
+                    let style = if i < 6 {
+                        theme::LOGO_BLUE
+                    } else {
+                        theme::LOGO_CORAL
+                    };
+                    lines.push(Line::styled(line.to_string(), style));
+                }
+                lines.push(Line::raw(""));
+            }
             ChatEntry::User(text) => {
                 lines.push(Line::styled(format!("> {}", text), theme::USER_MSG));
                 lines.push(Line::raw(""));

@@ -129,11 +129,6 @@ async fn cmd_chat(
     use crate::provider::anthropic::AnthropicProvider;
     use crate::provider::openai::OpenAIProvider;
 
-    // Show color logo on startup (true-color ANSI art)
-    const LOGO: &str = include_str!("../../../logo_color.txt");
-    eprintln!("{}", LOGO);
-    eprintln!();
-
     let mut config = AgentConfig::load(Some(path))?;
 
     // If no API key found from env/config, prompt interactively
