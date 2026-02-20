@@ -105,8 +105,36 @@ happycode watch /path/to/repo          # Watch and re-index on changes
 
 | Command | Action |
 |---------|--------|
-| `/clear` | Clear conversation history |
-| `/model <name>` | Switch model |
+| `/help` | Show all available commands |
+| `/clear` | Clear conversation and reset context |
+| `/compact` | Summarize conversation to save context window |
+| `/model <name>` | Switch to a different model |
+| `/stats` | Show repo and session statistics |
+| `/files` | List all indexed files |
+| `/quit` | Exit HappyFasterCode |
+
+### @ File References
+
+Include file contents directly in your messages:
+
+```
+@src/main.rs what does this file do?
+explain the relationship between @src/parser/mod.rs and @src/indexer/walker.rs
+```
+
+Files are resolved relative to the repo root, truncated at 8KB to protect context.
+
+### Custom Commands
+
+Create reusable prompts as `.happy/commands/<name>.md` files:
+
+```bash
+# .happy/commands/review.md
+Review the following code for bugs, security issues, and performance problems.
+Focus on: $ARGUMENTS
+```
+
+Then use it: `/review error handling in the parser module`
 
 ## Supported Languages
 

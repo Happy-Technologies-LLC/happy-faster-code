@@ -12,6 +12,66 @@ use tokio::sync::mpsc;
 enum AgentCommand {
     Query(String),
     Clear,
+    Compact,
+}
+
+/// Expand @file references in user input.
+/// Replaces `@path/to/file` with the file contents inline.
+fn expand_at_references(input: &str, repo_path: &str) -> String {
+    let mut result = String::new();
+    let mut chars = input.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        if c == '@' {
+            // Collect the file path (until whitespace or end)
+            let mut path = String::new();
+            while let Some(&next) = chars.peek() {
+                if next.is_whitespace() {
+                    break;
+                }
+                path.push(chars.next().unwrap());
+            }
+
+            if path.is_empty() {
+                result.push('@');
+                continue;
+            }
+
+            // Try to resolve the file
+            let full_path = if std::path::Path::new(&path).is_absolute() {
+                path.clone()
+            } else {
+                format!("{}/{}", repo_path, path)
+            };
+
+            match std::fs::read_to_string(&full_path) {
+                Ok(contents) => {
+                    let truncated = if contents.len() > 8000 {
+                        format!(
+                            "{}...\n[truncated, {} total chars]",
+                            &contents[..8000],
+                            contents.len()
+                        )
+                    } else {
+                        contents
+                    };
+                    result.push_str(&format!(
+                        "\n<file path=\"{}\">\n{}\n</file>\n",
+                        path, truncated
+                    ));
+                }
+                Err(_) => {
+                    // Not a valid file, keep the @reference as-is
+                    result.push('@');
+                    result.push_str(&path);
+                }
+            }
+        } else {
+            result.push(c);
+        }
+    }
+
+    result
 }
 
 /// Which panel has focus.
@@ -77,7 +137,7 @@ impl AppState {
         let welcome = format!(
             "Welcome to HappyFasterCode!\n\
              Indexed {} — ask me anything about this codebase.\n\
-             Type /clear to reset, /quit to exit, Tab to switch panels.",
+             Type /help for commands, Tab to switch panels.",
             repo_stats
         );
 
@@ -178,6 +238,17 @@ async fn agent_task(
             AgentCommand::Clear => {
                 agent.clear();
             }
+            AgentCommand::Compact => {
+                agent
+                    .query(
+                        &repo,
+                        "Please provide a concise summary of our conversation so far. \
+                         List the key questions asked, tools used, and conclusions reached. \
+                         This will replace the conversation history to save context window space.",
+                        &event_tx,
+                    )
+                    .await;
+            }
         }
     }
 }
@@ -273,23 +344,132 @@ fn handle_chat_key(
             state.input_cursor = 0;
 
             // Handle slash commands
-            match input.as_str() {
-                "/clear" => {
-                    let _ = cmd_tx.send(AgentCommand::Clear);
-                    state.chat_entries.clear();
-                    state.current_streaming.clear();
-                    return KeyAction::Continue;
+            if input.starts_with('/') {
+                let parts: Vec<&str> = input.splitn(2, ' ').collect();
+                let cmd = parts[0];
+                let arg = parts.get(1).map(|s| s.trim()).unwrap_or("");
+
+                match cmd {
+                    "/clear" | "/reset" => {
+                        let _ = cmd_tx.send(AgentCommand::Clear);
+                        state.chat_entries.clear();
+                        state.current_streaming.clear();
+                        state.total_tokens = 0;
+                        return KeyAction::Continue;
+                    }
+                    "/quit" | "/exit" | "/q" => return KeyAction::Quit,
+                    "/model" => {
+                        if arg.is_empty() {
+                            state.chat_entries.push(ChatEntry::AssistantText(
+                                format!("Current model: {}\nUsage: /model <name>", state.model_name),
+                            ));
+                        } else {
+                            state.model_name = arg.to_string();
+                            state.chat_entries.push(ChatEntry::AssistantText(
+                                format!("Switched to model: {}", arg),
+                            ));
+                        }
+                        return KeyAction::Continue;
+                    }
+                    "/stats" => {
+                        state.chat_entries.push(ChatEntry::AssistantText(
+                            format!(
+                                "Repository: {}\nGraph: {}\nProvider: {} ({})\nTokens used: {}",
+                                state.repo_path,
+                                state.repo_stats,
+                                state.provider_name,
+                                state.model_name,
+                                state.total_tokens,
+                            ),
+                        ));
+                        return KeyAction::Continue;
+                    }
+                    "/compact" => {
+                        let _ = cmd_tx.send(AgentCommand::Compact);
+                        state.chat_entries.push(ChatEntry::AssistantText(
+                            "Compacting conversation — summarizing context...".to_string(),
+                        ));
+                        state.is_streaming = true;
+                        return KeyAction::Continue;
+                    }
+                    "/help" | "/?" => {
+                        state.chat_entries.push(ChatEntry::AssistantText(
+                            "Available commands:\n\
+                             /help              Show this help message\n\
+                             /clear             Clear conversation and reset context\n\
+                             /compact           Summarize conversation to save context\n\
+                             /model <name>      Switch to a different model\n\
+                             /stats             Show repo and session statistics\n\
+                             /files             List all indexed files\n\
+                             /quit              Exit HappyFasterCode\n\
+                             \n\
+                             @ References:\n\
+                             @path/to/file      Include file contents in your message\n\
+                             \n\
+                             Keyboard shortcuts:\n\
+                             Tab                Cycle focus between panels\n\
+                             Ctrl-C             Quit\n\
+                             Up/Down            Scroll chat or navigate file tree\n\
+                             Enter              Submit input / open file in preview"
+                                .to_string(),
+                        ));
+                        return KeyAction::Continue;
+                    }
+                    "/files" => {
+                        let file_list = if state.files.len() > 50 {
+                            let mut list = state.files[..50].join("\n");
+                            list.push_str(&format!("\n... and {} more files", state.files.len() - 50));
+                            list
+                        } else {
+                            state.files.join("\n")
+                        };
+                        state.chat_entries.push(ChatEntry::AssistantText(
+                            format!("Indexed files ({}):\n{}", state.files.len(), file_list),
+                        ));
+                        return KeyAction::Continue;
+                    }
+                    _ => {
+                        // Try loading custom command from .happy/commands/<name>.md
+                        let cmd_name = &cmd[1..]; // strip leading /
+                        let cmd_path = format!(
+                            "{}/.happy/commands/{}.md",
+                            state.repo_path, cmd_name
+                        );
+                        if let Ok(template) = std::fs::read_to_string(&cmd_path) {
+                            // Replace $ARGUMENTS with the arg
+                            let prompt = if arg.is_empty() {
+                                template
+                            } else {
+                                template.replace("$ARGUMENTS", arg)
+                            };
+                            let expanded = expand_at_references(&prompt, &state.repo_path);
+                            state.chat_entries.push(ChatEntry::User(
+                                format!("/{} {}", cmd_name, arg).trim().to_string(),
+                            ));
+                            state.is_streaming = true;
+                            state.current_streaming.clear();
+                            let _ = cmd_tx.send(AgentCommand::Query(expanded));
+                            return KeyAction::Continue;
+                        }
+
+                        state.chat_entries.push(ChatEntry::Error(
+                            format!("Unknown command: {}. Type /help for available commands.", cmd),
+                        ));
+                        return KeyAction::Continue;
+                    }
                 }
-                "/quit" | "/exit" => return KeyAction::Quit,
-                _ => {}
             }
 
-            state.chat_entries.push(ChatEntry::User(input.clone()));
+            // Expand @file references before sending
+            let expanded = expand_at_references(&input, &state.repo_path);
+
+            // Show original input (not expanded) in chat
+            state.chat_entries.push(ChatEntry::User(input));
             state.is_streaming = true;
             state.current_streaming.clear();
 
-            // Send query to agent task via channel
-            let _ = cmd_tx.send(AgentCommand::Query(input));
+            // Send expanded query to agent task via channel
+            let _ = cmd_tx.send(AgentCommand::Query(expanded));
         }
         KeyCode::Char(c) => {
             state.input.insert(state.input_cursor, c);

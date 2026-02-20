@@ -121,8 +121,8 @@ impl AgentConfig {
         }
 
         // Use default model for the provider if still on default
-        if config.model == "claude-sonnet-4-20250514" && config.provider == ProviderKind::OpenAI {
-            config.model = "gpt-4o".to_string();
+        if config.model == "claude-sonnet-4-6" && config.provider == ProviderKind::OpenAI {
+            config.model = "gpt-5.2".to_string();
         }
 
         Ok(config)
@@ -147,11 +147,35 @@ impl AgentConfig {
         match choice {
             "2" => {
                 config.provider = ProviderKind::OpenAI;
-                config.model = "gpt-4o".to_string();
+                config.model = "gpt-5.2".to_string();
+
+                eprintln!("\nChoose a model:");
+                eprintln!("  \x1b[1m1\x1b[0m) gpt-5.2");
+                eprintln!("  \x1b[1m2\x1b[0m) gpt-5.2-pro");
+                eprintln!("  \x1b[1m3\x1b[0m) gpt-5.2-codex");
+                eprintln!("  \x1b[1m4\x1b[0m) Other (enter manually)");
+                eprint!("\nSelection [1]: ");
+                std::io::stderr().flush()?;
+                let mut model_choice = String::new();
+                std::io::stdin().read_line(&mut model_choice)?;
+                match model_choice.trim() {
+                    "2" => config.model = "gpt-5.2-pro".to_string(),
+                    "3" => config.model = "gpt-5.2-codex".to_string(),
+                    "4" => {
+                        eprint!("Model name: ");
+                        std::io::stderr().flush()?;
+                        let mut model = String::new();
+                        std::io::stdin().read_line(&mut model)?;
+                        let model = model.trim();
+                        if !model.is_empty() {
+                            config.model = model.to_string();
+                        }
+                    }
+                    _ => {} // default: gpt-5.2
+                }
             }
             "3" => {
                 config.provider = ProviderKind::OpenAI;
-                config.model = "gpt-4o".to_string();
 
                 eprint!("API base URL (e.g. http://localhost:4000): ");
                 std::io::stderr().flush()?;
@@ -162,17 +186,44 @@ impl AgentConfig {
                     config.api_base = Some(base.to_string());
                 }
 
-                eprint!("Model name [gpt-4o]: ");
+                eprint!("Model name: ");
                 std::io::stderr().flush()?;
                 let mut model = String::new();
                 std::io::stdin().read_line(&mut model)?;
                 let model = model.trim();
                 if !model.is_empty() {
                     config.model = model.to_string();
+                } else {
+                    config.model = "gpt-5.2".to_string();
                 }
             }
             // Default: Anthropic
-            _ => {}
+            _ => {
+                eprintln!("\nChoose a model:");
+                eprintln!("  \x1b[1m1\x1b[0m) claude-sonnet-4-6");
+                eprintln!("  \x1b[1m2\x1b[0m) claude-opus-4-6");
+                eprintln!("  \x1b[1m3\x1b[0m) claude-haiku-4-5-20251001");
+                eprintln!("  \x1b[1m4\x1b[0m) Other (enter manually)");
+                eprint!("\nSelection [1]: ");
+                std::io::stderr().flush()?;
+                let mut model_choice = String::new();
+                std::io::stdin().read_line(&mut model_choice)?;
+                match model_choice.trim() {
+                    "2" => config.model = "claude-opus-4-6".to_string(),
+                    "3" => config.model = "claude-haiku-4-5-20251001".to_string(),
+                    "4" => {
+                        eprint!("Model name: ");
+                        std::io::stderr().flush()?;
+                        let mut model = String::new();
+                        std::io::stdin().read_line(&mut model)?;
+                        let model = model.trim();
+                        if !model.is_empty() {
+                            config.model = model.to_string();
+                        }
+                    }
+                    _ => {} // default: claude-sonnet-4
+                }
+            }
         }
 
         eprint!(
@@ -248,7 +299,7 @@ impl Default for AgentConfig {
     fn default() -> Self {
         Self {
             provider: ProviderKind::Anthropic,
-            model: "claude-sonnet-4-20250514".to_string(),
+            model: "claude-sonnet-4-6".to_string(),
             api_key: String::new(),
             api_base: None,
             max_tokens: 4096,
