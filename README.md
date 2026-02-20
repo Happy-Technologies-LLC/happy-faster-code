@@ -60,9 +60,6 @@ cargo build --release
 # Run (defaults to interactive chat mode)
 happycode /path/to/your/repo
 
-# Or use the short name
-happy chat /path/to/your/repo
-
 # First run will prompt for provider and API key
 ```
 
@@ -85,13 +82,13 @@ export HAPPY_TEMPERATURE=0.0
 ### CLI Commands
 
 ```bash
-happycode                          # Interactive chat (default)
-happycode /path/to/repo            # Chat with specific repo
-happy index /path/to/repo          # Index only (no chat)
-happy query /path/to/repo symbol   # Query code graph
-happy search /path/to/repo "term"  # BM25 keyword search
-happy stats /path/to/repo          # Show graph statistics
-happy watch /path/to/repo          # Watch and re-index on changes
+happycode                              # Interactive chat (default)
+happycode /path/to/repo                # Chat with specific repo
+happycode index /path/to/repo          # Index only (no chat)
+happycode query /path/to/repo symbol   # Query code graph
+happycode search /path/to/repo "term"  # BM25 keyword search
+happycode stats /path/to/repo          # Show graph statistics
+happycode watch /path/to/repo          # Watch and re-index on changes
 ```
 
 ### TUI Key Bindings

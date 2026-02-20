@@ -7,10 +7,6 @@ authors.workspace = true
 description = "CLI for HappyFasterCode code indexing and querying"
 
 [[bin]]
-name = "happy"
-path = "src/main.rs"
-
-[[bin]]
 name = "happycode"
 path = "src/main.rs"
 
