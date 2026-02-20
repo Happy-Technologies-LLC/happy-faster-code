@@ -1,18 +1,55 @@
+<p align="center">
+  <img src="HappyFasterCode-text.png" alt="HappyFasterCode" width="600">
+</p>
+
 # HappyFasterCode
 
-A high-performance, Rust-native AI coding agent with an interactive terminal UI. Index any codebase, build a navigable code graph, and chat with an LLM that has deep structural understanding of your code — all from your terminal.
+**The AI coding agent that actually understands your codebase.**
 
-## Features
+Every AI coding CLI today — Claude Code, Gemini CLI, Codex — works the same way: read files, grep for text, hope the LLM figures out the structure. They treat your codebase as a bag of text files.
 
-- **Rust-native code indexing** — Tree-sitter parsing for Python, TypeScript, JavaScript, Rust, Go, Java, C/C++, C#
-- **Code graph** — Petgraph-backed directed graph with callers, callees, dependencies, inheritance, and cross-file relationships
-- **BM25 keyword search** — Fast full-text search across all indexed code elements
-- **Interactive TUI** — Multi-panel ratatui terminal interface with file tree, chat, and code preview
-- **Streaming LLM integration** — Anthropic (Claude) and OpenAI (GPT) with streaming responses and tool use
-- **OpenAI-compatible endpoints** — Works with LiteLLM, Ollama, vLLM, and other OpenAI-compatible APIs
-- **Parallel indexing** — Rayon-powered parallel file walking and parsing
-- **Incremental updates** — File watcher for live re-indexing on changes
-- **PyO3 bridge** — Optional Python bindings for integration with Python toolchains
+HappyFasterCode is different. Before the LLM sees a single token, it builds a **full structural graph** of your entire codebase: every function call, every import chain, every class hierarchy, every dependency edge. Then it gives the LLM **13 graph-aware tools** to navigate that structure — not just `read_file` and `grep`, but `find_callers`, `find_callees`, `get_dependencies`, `get_subclasses`, `find_path` between any two symbols, and more.
+
+The result: the LLM doesn't guess at relationships. It **knows** them.
+
+## Why This Exists
+
+AI coding tools are bottlenecked by context, not intelligence. When you ask "what calls this function?", existing tools grep the codebase, stuff matches into the context window, and hope for the best. This fails on large codebases, indirect calls, cross-file relationships, and anything that requires understanding structure rather than matching text.
+
+HappyFasterCode solves this with a Rust-native indexing engine that builds a directed graph of your code in seconds, then exposes that graph to the LLM as first-class tools. The LLM can traverse call chains, walk dependency trees, and follow inheritance hierarchies — all with sub-millisecond query latency.
+
+## What Makes It Different
+
+| | HappyFasterCode | Typical AI CLI |
+|---|---|---|
+| **Code understanding** | Structural graph (AST-parsed, edge-connected) | Text search (grep/ripgrep) |
+| **"Who calls X?"** | Exact answer via graph traversal | Best-effort regex match |
+| **Cross-file dependencies** | Full import/dependency graph | File-by-file reading |
+| **Class hierarchies** | Inheritance edges, subclass/superclass queries | String matching on `extends`/`implements` |
+| **Path between symbols** | Shortest path through call/import/inheritance graph | Not possible |
+| **Indexing speed** | Parallel Rust (tree-sitter + rayon), seconds for 100k LoC | N/A or Python-based |
+| **Query latency** | Sub-millisecond graph lookups | Re-reads files each time |
+| **LLM provider** | Anthropic, OpenAI, or any OpenAI-compatible endpoint | Usually locked to one |
+
+## The 13 Structural Tools
+
+These are the tools the LLM has access to — far beyond file reading:
+
+| Tool | What it does |
+|------|-------------|
+| `search_code` | BM25 keyword search across all indexed code elements |
+| `get_source` | Retrieve source code of any function, class, or module by ID |
+| `find_callers` | Who calls this function? (graph traversal, not grep) |
+| `find_callees` | What does this function call? |
+| `get_dependencies` | What files does this file import? |
+| `get_dependents` | What files import this file? |
+| `get_subclasses` | What classes extend this class? |
+| `get_superclasses` | What does this class inherit from? |
+| `find_path` | Shortest path between any two symbols through the code graph |
+| `get_related` | All symbols within N hops in the graph (multi-edge traversal) |
+| `repo_stats` | Node, edge, and file counts for the indexed graph |
+| `list_files` | All indexed files in the repository |
+| `read_file` | Raw file contents |
 
 ## Quick Start
 
@@ -74,6 +111,10 @@ happy watch /path/to/repo          # Watch and re-index on changes
 | `/clear` | Clear conversation history |
 | `/model <name>` | Switch model |
 
+## Supported Languages
+
+Python, TypeScript, JavaScript, Rust, Go, Java, C, C++, C#  — with tree-sitter grammars for accurate AST parsing (not regex-based).
+
 ## Architecture
 
 ```
@@ -104,7 +145,7 @@ maturin develop --features python
 
 On first run without an API key, HappyFasterCode will interactively prompt for:
 1. Provider (Anthropic, OpenAI, or OpenAI-compatible)
-2. API base URL (for self-hosted/proxy endpoints)
+2. API base URL (for self-hosted/proxy endpoints like LiteLLM, Ollama, vLLM)
 3. API key
 
 Configuration is saved to `.happy/agent.toml` in your repository. Add `.happy/` to your `.gitignore`.
@@ -122,4 +163,4 @@ HappyFasterCode draws inspiration from several excellent open-source projects:
 
 MIT — see [LICENSE](LICENSE).
 
-Copyright (c) 2025 Happy Technologies LLC
+Copyright (c) 2026 Happy Technologies LLC
