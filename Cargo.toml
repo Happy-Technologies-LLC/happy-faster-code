@@ -1,0 +1,73 @@
+[workspace]
+members = ["crates/happy-core", "crates/happy-cli"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["Happy Technologies LLC"]
+
+[workspace.dependencies]
+# AST parsing
+tree-sitter = "0.24"
+
+# Graph
+petgraph = "0.6"
+
+# Concurrency
+rayon = "1.10"
+dashmap = "6"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+bincode = "1.3"
+
+# Hashing
+blake3 = "1"
+
+# String optimization
+smol_str = { version = "0.3", features = ["serde"] }
+
+# File walking
+ignore = "0.4"
+
+# File watching
+notify = "7"
+notify-debouncer-mini = "0.5"
+
+# Vector search
+hnsw_rs = "0.3"
+
+# Python bindings
+pyo3 = { version = "0.23", features = ["abi3-py39", "extension-module"] }
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Logging
+log = "0.4"
+env_logger = "0.11"
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json", "stream"] }
+
+# Streaming
+futures = "0.3"
+tokio-stream = "0.1"
+eventsource-stream = "0.2"
+async-trait = "0.1"
+
+# Terminal UI
+ratatui = "0.29"
+crossterm = "0.28"
+
+# Config
+toml = "0.8"

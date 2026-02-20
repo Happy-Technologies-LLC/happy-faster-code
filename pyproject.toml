@@ -1,0 +1,26 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "happy-faster-code"
+version = "0.1.0"
+description = "Extreme-performance AI software engineering agent with Rust-native indexing"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+dependencies = [
+    "rlms>=0.1.0",
+    "litellm>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "maturin>=1.0",
+]
+
+[tool.maturin]
+manifest-path = "crates/happy-core/Cargo.toml"
+features = ["python"]
+python-source = "python"
+module-name = "happy_faster_code.happy_core"
