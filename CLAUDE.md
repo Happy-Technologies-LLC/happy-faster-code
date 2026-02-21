@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-HappyFasterCode is a code-graph-aware AI coding agent built on [OpenAI's Codex CLI](https://github.com/openai/codex). It extends the Codex agent with a Rust-native structural code graph engine (`happy-core`) that indexes the entire codebase into a petgraph directed graph, then exposes 13 graph navigation tools to the LLM alongside Codex's standard read/write/execute tools.
+happycode is a code-graph-aware AI coding agent built on [OpenAI's Codex CLI](https://github.com/openai/codex). It extends the Codex agent with a Rust-native structural code graph engine (`happy-core`) that indexes the entire codebase into a petgraph directed graph, then exposes 13 graph navigation tools to the LLM alongside Codex's standard read/write/execute tools.
 
 ## Architecture
 

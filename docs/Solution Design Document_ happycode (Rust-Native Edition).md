@@ -1,8 +1,8 @@
-# Solution Design Document: HappyFasterCode (Rust-Native Edition)
+# Solution Design Document: happycode (Rust-Native Edition)
 
 ## 1. Executive Summary
 
-HappyFasterCode is a fork of OpenAI Codex CLI that adds a Rust-native code graph engine (`happy-core`) and exposes graph-native tools directly to the model runtime.
+happycode is a fork of OpenAI Codex CLI that adds a Rust-native code graph engine (`happy-core`) and exposes graph-native tools directly to the model runtime.
 
 As implemented today:
 

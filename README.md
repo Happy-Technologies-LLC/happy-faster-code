@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="HappyFasterCode-text.png" alt="HappyFasterCode" width="600">
+  <img src="logo.svg" alt="happycode" width="600">
 </p>
 
-# HappyFasterCode
+# happycode
 
 **A code-graph-aware AI coding agent built on OpenAI Codex CLI.**
 
-HappyFasterCode extends [OpenAI's Codex CLI](https://github.com/openai/codex) with a Rust-native structural code graph engine. Before the LLM sees a single token, it builds a **full structural graph** of your entire codebase — every function call, every import chain, every class hierarchy, every dependency edge — then exposes that graph to the LLM as **13 additional tools** on top of Codex's existing read/write/execute capabilities.
+happycode extends [OpenAI's Codex CLI](https://github.com/openai/codex) with a Rust-native structural code graph engine. Before the LLM sees a single token, it builds a **full structural graph** of your entire codebase — every function call, every import chain, every class hierarchy, every dependency edge — then exposes that graph to the LLM as **13 additional tools** on top of Codex's existing read/write/execute capabilities.
 
 The result: the LLM doesn't guess at relationships. It **knows** them.
 
@@ -14,11 +14,11 @@ The result: the LLM doesn't guess at relationships. It **knows** them.
 
 AI coding tools are bottlenecked by context, not intelligence. When you ask "what calls this function?", existing tools grep the codebase, stuff matches into the context window, and hope for the best. This fails on large codebases, indirect calls, cross-file relationships, and anything that requires understanding structure rather than matching text.
 
-HappyFasterCode adds a structural code graph layer to the Codex agent, giving the LLM precise answers to structural queries with sub-millisecond latency — no grepping, no guessing.
+happycode adds a structural code graph layer to the Codex agent, giving the LLM precise answers to structural queries with sub-millisecond latency — no grepping, no guessing.
 
 ## What Makes It Different
 
-| | HappyFasterCode | Typical AI CLI |
+| | happycode | Typical AI CLI |
 |---|---|---|
 | **Code understanding** | Structural graph (AST-parsed, edge-connected) | Text search (grep/ripgrep) |
 | **"Who calls X?"** | Exact answer via graph traversal | Best-effort regex match |
@@ -31,9 +31,9 @@ HappyFasterCode adds a structural code graph layer to the Codex agent, giving th
 
 ## Agent Tools
 
-HappyFasterCode gives the LLM all of Codex's built-in tools **plus** 13 code graph navigation tools:
+happycode gives the LLM all of Codex's built-in tools **plus** 13 code graph navigation tools:
 
-### Code Graph Tools (unique to HappyFasterCode)
+### Code Graph Tools (unique to happycode)
 
 | Tool | What it does |
 |------|-------------|
@@ -154,7 +154,7 @@ maturin develop -m crates/happy-core/Cargo.toml --features python
 
 ## Acknowledgments
 
-HappyFasterCode builds on several excellent open-source projects:
+happycode builds on several excellent open-source projects:
 
 - **[Codex](https://github.com/openai/codex)** by OpenAI — The foundation: production Rust terminal agent, event-driven architecture, ratatui TUI, sandboxed execution
 - **[FastCode](https://github.com/Zeeshan-Hamid/FastCode)** by Zeeshan Hamid — The original Python code indexing and graph approach that inspired happy-core's architecture

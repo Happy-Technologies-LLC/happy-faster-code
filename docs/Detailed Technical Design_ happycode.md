@@ -1,8 +1,8 @@
-# Detailed Technical Design: HappyFasterCode
+# Detailed Technical Design: happycode
 
 ## 1. System Overview
 
-HappyFasterCode combines:
+happycode combines:
 
 - A Rust-native structural code graph engine (`crates/happy-core`)
 - A Codex CLI runtime fork (`core`, `cli`, `tui`, `exec`, ...)

@@ -37,4 +37,4 @@ Best when:
 
 ## Current Repo State
 
-HappyFasterCode currently implements Tier 3, with optional Python orchestration tooling that can also support Tier 2 packaging.
+happycode currently implements Tier 3, with optional Python orchestration tooling that can also support Tier 2 packaging.
