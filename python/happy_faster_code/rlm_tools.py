@@ -5,7 +5,11 @@ import os
 from pathlib import Path
 
 
-def build_rlm_namespace(repo, repo_path: str = ".") -> dict:
+def build_rlm_namespace(
+    repo,
+    repo_path: str = ".",
+    recall_memory=None,
+) -> dict:
     """Build a namespace dict for RLM's code_tools parameter.
 
     The RLM agent writes Python code executed in a REPL. Objects in this
@@ -32,18 +36,40 @@ def build_rlm_namespace(repo, repo_path: str = ".") -> dict:
                 results.append(os.path.relpath(m, abs_root))
         return results
 
-    return {
+    namespace = {
         "repo": repo,
         "read_file": read_file,
         "list_files": list_files,
     }
+    if recall_memory is not None:
+        namespace["recall_memory"] = recall_memory
+    return namespace
 
 
-def build_system_prompt(repo) -> str:
+def build_system_prompt(repo, memory_context: str | None = None) -> str:
     """Build the system prompt describing available tools for the RLM agent."""
     stats = repo.stats() if hasattr(repo, "stats") else {}
     node_count = stats.get("nodes", "?")
     file_count = stats.get("files", "?")
+
+    memory_section = ""
+    if memory_context:
+        memory_section = f"""
+## Memory Context (Volt/LCM)
+You also have external long-session memory context from Volt.
+Use it as auxiliary context, but always verify code claims against `repo` and files.
+
+{memory_context}
+
+"""
+
+    recall_memory_section = """
+## recall_memory(query: str) -> str
+  Retrieve additional long-session memory context from Volt/LCM.
+  Treat results as hints; validate against repository state before conclusions.
+"""
+    if memory_context is None:
+        recall_memory_section = ""
 
     return f"""You are a code analysis agent with access to a structural code graph.
 The repository has been indexed: {node_count} nodes across {file_count} files.
@@ -104,6 +130,8 @@ Methods:
 ## list_files(pattern: str) -> list[str]
   Glob files in the repo. E.g. list_files("**/*.py") for all Python files.
 
+{recall_memory_section}
+
 ## delegate(prompt: str) -> str
   Delegate a sub-query to a worker model. Use this for parallelizable analysis.
   The worker has the same tools available.
@@ -121,6 +149,9 @@ Methods:
    independent investigations to worker models.
 4. Always store intermediate results in variables for later reference.
 5. Print your final answer clearly — the printed output is returned to the user.
+6. If memory context is present, treat it as directional context, not source of truth.
+
+{memory_section}
 
 ## Example
 

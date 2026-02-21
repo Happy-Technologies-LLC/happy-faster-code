@@ -30,6 +30,13 @@ def load_config(repo_path: str = ".") -> dict:
         "api_base": None,
         "worker_model": None,
         "mode": "all-in-one",
+        "volt_enabled": False,
+        "volt_api_base": None,
+        "volt_api_key": None,
+        "volt_search_path": "/api/memory/search",
+        "volt_conversation_id": None,
+        "volt_top_k": 8,
+        "volt_bootstrap_query": None,
     }
 
     # Load .happy/agent.toml
@@ -45,6 +52,13 @@ def load_config(repo_path: str = ".") -> dict:
                 "api_base",
                 "worker_model",
                 "mode",
+                "volt_enabled",
+                "volt_api_base",
+                "volt_api_key",
+                "volt_search_path",
+                "volt_conversation_id",
+                "volt_top_k",
+                "volt_bootstrap_query",
             ):
                 if key in data and data[key] is not None:
                     config[key] = data[key]
@@ -63,6 +77,30 @@ def load_config(repo_path: str = ".") -> dict:
 
     if env_mode := os.environ.get("HAPPY_MODE"):
         config["mode"] = env_mode
+
+    if env_volt_enabled := os.environ.get("HAPPY_VOLT_ENABLED"):
+        config["volt_enabled"] = env_volt_enabled.lower() in ("1", "true", "yes", "on")
+
+    if env_volt_api_base := os.environ.get("HAPPY_VOLT_API_BASE"):
+        config["volt_api_base"] = env_volt_api_base
+
+    if env_volt_api_key := os.environ.get("HAPPY_VOLT_API_KEY"):
+        config["volt_api_key"] = env_volt_api_key
+
+    if env_volt_search_path := os.environ.get("HAPPY_VOLT_SEARCH_PATH"):
+        config["volt_search_path"] = env_volt_search_path
+
+    if env_volt_conversation_id := os.environ.get("HAPPY_VOLT_CONVERSATION_ID"):
+        config["volt_conversation_id"] = env_volt_conversation_id
+
+    if env_volt_top_k := os.environ.get("HAPPY_VOLT_TOP_K"):
+        try:
+            config["volt_top_k"] = max(1, int(env_volt_top_k))
+        except ValueError:
+            pass
+
+    if env_volt_bootstrap_query := os.environ.get("HAPPY_VOLT_BOOTSTRAP_QUERY"):
+        config["volt_bootstrap_query"] = env_volt_bootstrap_query
 
     # Auto-detect provider and API key from environment
     if not config["api_key"]:
@@ -90,6 +128,14 @@ def load_config(repo_path: str = ".") -> dict:
         config["mode"] = normalize_mode(config["mode"])
     except ValueError:
         config["mode"] = "all-in-one"
+
+    # Normalize optional Volt fields loaded from TOML.
+    try:
+        config["volt_top_k"] = max(1, int(config.get("volt_top_k", 8)))
+    except (TypeError, ValueError):
+        config["volt_top_k"] = 8
+
+    config["volt_enabled"] = bool(config.get("volt_enabled", False))
 
     return config
 

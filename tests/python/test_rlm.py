@@ -108,6 +108,26 @@ class TestConfig:
         config = load_config("/nonexistent/path")
         assert config["litellm_model"] == "gpt-4o"
 
+    def test_load_config_volt_env_overrides(self, monkeypatch):
+        monkeypatch.setenv("HAPPY_VOLT_ENABLED", "true")
+        monkeypatch.setenv("HAPPY_VOLT_API_BASE", "http://localhost:3000")
+        monkeypatch.setenv("HAPPY_VOLT_API_KEY", "volt-key")
+        monkeypatch.setenv("HAPPY_VOLT_SEARCH_PATH", "/v1/memory/search")
+        monkeypatch.setenv("HAPPY_VOLT_CONVERSATION_ID", "thread-123")
+        monkeypatch.setenv("HAPPY_VOLT_TOP_K", "5")
+        monkeypatch.setenv("HAPPY_VOLT_BOOTSTRAP_QUERY", "important preferences")
+
+        from happy_faster_code.config import load_config
+
+        config = load_config("/nonexistent/path")
+        assert config["volt_enabled"] is True
+        assert config["volt_api_base"] == "http://localhost:3000"
+        assert config["volt_api_key"] == "volt-key"
+        assert config["volt_search_path"] == "/v1/memory/search"
+        assert config["volt_conversation_id"] == "thread-123"
+        assert config["volt_top_k"] == 5
+        assert config["volt_bootstrap_query"] == "important preferences"
+
 
 class TestRlmTools:
     def test_build_rlm_namespace(self):
@@ -181,6 +201,29 @@ class TestRlmTools:
         assert "100" in prompt  # node count
         assert "10" in prompt  # file count
 
+    def test_namespace_includes_recall_memory_when_present(self):
+        mock_repo = MagicMock()
+
+        from happy_faster_code.rlm_tools import build_rlm_namespace
+
+        def recall_memory(_q: str) -> str:
+            return "memory"
+
+        ns = build_rlm_namespace(mock_repo, "/tmp", recall_memory=recall_memory)
+        assert "recall_memory" in ns
+        assert callable(ns["recall_memory"])
+
+    def test_prompt_includes_memory_context_when_present(self):
+        mock_repo = MagicMock()
+        mock_repo.stats.return_value = {"nodes": 10, "files": 3}
+
+        from happy_faster_code.rlm_tools import build_system_prompt
+
+        prompt = build_system_prompt(mock_repo, memory_context="1. user prefers python")
+        assert "Memory Context (Volt/LCM)" in prompt
+        assert "recall_memory" in prompt
+        assert "user prefers python" in prompt
+
 
 class TestWorker:
     def test_build_delegate_returns_callable(self):
@@ -191,6 +234,42 @@ class TestWorker:
 
         delegate = build_delegate(mock_repo, "/tmp", "gpt-4o-mini")
         assert callable(delegate)
+
+
+class TestVoltMemory:
+    def test_build_hooks_disabled(self):
+        from happy_faster_code.volt_memory import build_volt_memory_hooks
+
+        context, recall = build_volt_memory_hooks({"volt_enabled": False}, "query")
+        assert context is None
+        assert recall is None
+
+    def test_build_hooks_uses_client(self, monkeypatch):
+        from happy_faster_code import volt_memory
+
+        class FakeClient:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def search(self, query, *, conversation_id=None, top_k=8):
+                return [{"content": f"memory for {query}", "score": 0.9}]
+
+        monkeypatch.setattr("happy_faster_code.volt_memory.VoltMemoryClient", FakeClient)
+        context, recall = volt_memory.build_volt_memory_hooks(
+            {
+                "volt_enabled": True,
+                "volt_api_base": "http://localhost:3000",
+                "volt_search_path": "/api/memory/search",
+                "volt_top_k": 3,
+                "volt_conversation_id": "thread-1",
+                "volt_bootstrap_query": "bootstrap",
+            },
+            "ignored",
+        )
+        assert context is not None
+        assert "memory for bootstrap" in context
+        assert recall is not None
+        assert "memory for follow-up" in recall("follow-up")
 
 
 class TestOrchestratorImport:
@@ -241,15 +320,15 @@ class TestOrchestratorRun:
         )
         monkeypatch.setattr(
             "happy_faster_code.rlm_tools.build_rlm_namespace",
-            lambda repo, _path: {"repo": repo},
+            lambda repo, _path, **_kwargs: {"repo": repo},
         )
         monkeypatch.setattr(
             "happy_faster_code.rlm_tools.build_system_prompt",
-            lambda _repo: "system",
+            lambda _repo, **_kwargs: "system",
         )
         monkeypatch.setattr(
             "happy_faster_code.worker.build_delegate",
-            lambda _repo, _path, _model: (lambda prompt: prompt),
+            lambda _repo, _path, _model, **_kwargs: (lambda prompt: prompt),
         )
 
         result = orchestrator.run(
@@ -304,15 +383,15 @@ class TestOrchestratorRun:
         )
         monkeypatch.setattr(
             "happy_faster_code.rlm_tools.build_rlm_namespace",
-            lambda repo, _path: {"repo": repo},
+            lambda repo, _path, **_kwargs: {"repo": repo},
         )
         monkeypatch.setattr(
             "happy_faster_code.rlm_tools.build_system_prompt",
-            lambda _repo: "system",
+            lambda _repo, **_kwargs: "system",
         )
         monkeypatch.setattr(
             "happy_faster_code.worker.build_delegate",
-            lambda _repo, _path, _model: (lambda prompt: prompt),
+            lambda _repo, _path, _model, **_kwargs: (lambda prompt: prompt),
         )
 
         result = orchestrator.run(
@@ -367,15 +446,15 @@ class TestOrchestratorRun:
         )
         monkeypatch.setattr(
             "happy_faster_code.rlm_tools.build_rlm_namespace",
-            lambda repo, _path: {"repo": repo},
+            lambda repo, _path, **_kwargs: {"repo": repo},
         )
         monkeypatch.setattr(
             "happy_faster_code.rlm_tools.build_system_prompt",
-            lambda _repo: "system",
+            lambda _repo, **_kwargs: "system",
         )
         monkeypatch.setattr(
             "happy_faster_code.worker.build_delegate",
-            lambda _repo, _path, _model: (lambda prompt: prompt),
+            lambda _repo, _path, _model, **_kwargs: (lambda prompt: prompt),
         )
 
         result = orchestrator.run(
@@ -420,15 +499,15 @@ class TestOrchestratorRun:
         )
         monkeypatch.setattr(
             "happy_faster_code.rlm_tools.build_rlm_namespace",
-            lambda repo, _path: {"repo": repo},
+            lambda repo, _path, **_kwargs: {"repo": repo},
         )
         monkeypatch.setattr(
             "happy_faster_code.rlm_tools.build_system_prompt",
-            lambda _repo: "system",
+            lambda _repo, **_kwargs: "system",
         )
         monkeypatch.setattr(
             "happy_faster_code.worker.build_delegate",
-            lambda _repo, _path, _model: (lambda prompt: prompt),
+            lambda _repo, _path, _model, **_kwargs: (lambda prompt: prompt),
         )
 
         result = orchestrator.run(path="/repo", query="analyze", verbose=False)

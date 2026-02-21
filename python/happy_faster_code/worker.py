@@ -1,7 +1,14 @@
 """Worker model delegation for recursive RLM sub-queries."""
 
 
-def build_delegate(repo, repo_path: str, worker_model: str):
+def build_delegate(
+    repo,
+    repo_path: str,
+    worker_model: str,
+    *,
+    recall_memory=None,
+    memory_context: str | None = None,
+):
     """Build a delegate function that runs sub-queries on a worker model.
 
     The returned function is injected into the RLM namespace so the frontier
@@ -22,8 +29,12 @@ def build_delegate(repo, repo_path: str, worker_model: str):
 
         from happy_faster_code.rlm_tools import build_rlm_namespace, build_system_prompt
 
-        namespace = build_rlm_namespace(repo, repo_path)
-        system_prompt = build_system_prompt(repo)
+        namespace = build_rlm_namespace(
+            repo,
+            repo_path,
+            recall_memory=recall_memory,
+        )
+        system_prompt = build_system_prompt(repo, memory_context=memory_context)
 
         worker = RLM(
             backend="litellm",

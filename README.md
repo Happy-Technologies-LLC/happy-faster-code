@@ -94,10 +94,20 @@ happycode
 export OPENAI_API_KEY=sk-...
 # Or for Anthropic
 export ANTHROPIC_API_KEY=sk-ant-...
+
+# Optional: enable Volt/LCM memory retrieval for RLM workers
+export HAPPY_VOLT_ENABLED=true
+export HAPPY_VOLT_API_BASE=http://localhost:3000
+# Optional:
+# export HAPPY_VOLT_API_KEY=...
+# export HAPPY_VOLT_SEARCH_PATH=/api/memory/search
+# export HAPPY_VOLT_CONVERSATION_ID=<thread-or-session-id>
+# export HAPPY_VOLT_TOP_K=8
 ```
 
 The code graph indexes your working directory automatically in the background on session start. No separate indexing step required.
 `rlm_analyze` uses a local RPC bridge to query the live in-memory graph directly (with snapshot/path fallback), so it does not perform a second filesystem walk in normal usage.
+When `HAPPY_VOLT_ENABLED=true`, RLM orchestration also attaches optional long-session memory context from a configured Volt endpoint.
 `rlms` and `litellm` are installed as package dependencies, so no separate manual install is required for `rlm_analyze`.
 
 ## Supported Languages

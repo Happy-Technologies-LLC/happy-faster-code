@@ -36,6 +36,7 @@ def run(
     from happy_faster_code import HappyRepo
     from happy_faster_code.config import load_config
     from happy_faster_code.rlm_tools import build_rlm_namespace, build_system_prompt
+    from happy_faster_code.volt_memory import build_volt_memory_hooks
     from happy_faster_code.worker import build_delegate
 
     # Load config (TOML + env vars), allow model override
@@ -79,12 +80,19 @@ def run(
         repo = HappyRepo.from_elements_file(elements_file, path)
     else:
         repo = HappyRepo(path)
-    namespace = build_rlm_namespace(repo, path)
-    system_prompt = build_system_prompt(repo)
+    memory_context, recall_memory = build_volt_memory_hooks(config, query)
+    namespace = build_rlm_namespace(repo, path, recall_memory=recall_memory)
+    system_prompt = build_system_prompt(repo, memory_context=memory_context)
 
     # Add delegate function for recursive sub-queries
     worker_model = config.get("worker_model") or litellm_model
-    delegate_fn = build_delegate(repo, path, worker_model)
+    delegate_fn = build_delegate(
+        repo,
+        path,
+        worker_model,
+        recall_memory=recall_memory,
+        memory_context=memory_context,
+    )
     namespace["delegate"] = delegate_fn
     # Backward-compatible alias used in existing prompts/docs.
     namespace["rlm_query"] = delegate_fn
