@@ -79,7 +79,7 @@ def run(
 def main():
     """CLI entry point for happy-rlm."""
     parser = argparse.ArgumentParser(
-        description="HappyFasterCode RLM Orchestrator — recursive code analysis"
+        description="happycode RLM Orchestrator — recursive code analysis"
     )
     parser.add_argument("--path", required=True, help="Path to the repository")
     parser.add_argument("--query", required=True, help="Analysis query to run")

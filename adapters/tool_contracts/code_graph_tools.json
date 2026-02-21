@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "tools": [
+    {
+      "name": "find_callers",
+      "required": ["symbol"]
+    },
+    {
+      "name": "find_callees",
+      "required": ["symbol"]
+    },
+    {
+      "name": "get_dependencies",
+      "required": ["file_path"]
+    },
+    {
+      "name": "get_dependents",
+      "required": ["file_path"]
+    },
+    {
+      "name": "get_subclasses",
+      "required": ["symbol"]
+    },
+    {
+      "name": "get_superclasses",
+      "required": ["symbol"]
+    },
+    {
+      "name": "find_code_path",
+      "required": ["source", "target"]
+    },
+    {
+      "name": "get_related",
+      "required": ["symbol"],
+      "optional": ["max_hops"]
+    },
+    {
+      "name": "search_code",
+      "required": ["query"],
+      "optional": ["limit"]
+    },
+    {
+      "name": "get_code_source",
+      "required": ["symbol"]
+    },
+    {
+      "name": "repo_stats",
+      "required": []
+    },
+    {
+      "name": "list_indexed_files",
+      "required": []
+    },
+    {
+      "name": "rlm_analyze",
+      "required": ["query"],
+      "optional": ["max_depth"]
+    }
+  ]
+}

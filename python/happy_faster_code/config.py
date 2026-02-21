@@ -1,8 +1,10 @@
-"""Config reader for HappyFasterCode — loads .happy/agent.toml with env var overrides."""
+"""Config reader for happycode — loads .happy/agent.toml with env var overrides."""
 
 import os
 import sys
 from pathlib import Path
+
+from happy_faster_code.integration import normalize_mode
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -19,7 +21,7 @@ def load_config(repo_path: str = ".") -> dict:
     Priority: env vars > TOML > defaults.
 
     Returns:
-        dict with keys: model, api_key, api_base, worker_model
+        dict with keys: provider, model, api_key, api_base, worker_model, mode
     """
     config = {
         "provider": "anthropic",
@@ -27,6 +29,7 @@ def load_config(repo_path: str = ".") -> dict:
         "api_key": "",
         "api_base": None,
         "worker_model": None,
+        "mode": "all-in-one",
     }
 
     # Load .happy/agent.toml
@@ -35,7 +38,14 @@ def load_config(repo_path: str = ".") -> dict:
         try:
             with open(toml_path, "rb") as f:
                 data = tomllib.load(f)
-            for key in ("provider", "model", "api_key", "api_base", "worker_model"):
+            for key in (
+                "provider",
+                "model",
+                "api_key",
+                "api_base",
+                "worker_model",
+                "mode",
+            ):
                 if key in data and data[key] is not None:
                     config[key] = data[key]
         except Exception:
@@ -50,6 +60,9 @@ def load_config(repo_path: str = ".") -> dict:
 
     if env_worker := os.environ.get("HAPPY_WORKER_MODEL"):
         config["worker_model"] = env_worker
+
+    if env_mode := os.environ.get("HAPPY_MODE"):
+        config["mode"] = env_mode
 
     # Auto-detect provider and API key from environment
     if not config["api_key"]:
@@ -72,6 +85,11 @@ def load_config(repo_path: str = ".") -> dict:
 
     # Build LiteLLM model string
     config["litellm_model"] = _build_litellm_model(config)
+
+    try:
+        config["mode"] = normalize_mode(config["mode"])
+    except ValueError:
+        config["mode"] = "all-in-one"
 
     return config
 

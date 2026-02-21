@@ -8,11 +8,13 @@ happycode is a code-graph-aware AI coding agent built on [OpenAI's Codex CLI](ht
 
 ## Architecture
 
-Two main components:
+Three main components:
 
 - **happy-core** (`crates/happy-core/`) — Rust library crate. Tree-sitter parses source files into ASTs across 9 languages (Python, JS, TS, TSX, Rust, Go, Java, C, C++). The indexer extracts `CodeElement`s via parallel filesystem walking (`ignore` + `rayon`). The graph builder connects elements via edges (Defines, Calls, Imports, Inherits, References) in a `petgraph::StableDiGraph`. A `GlobalIndex` with `ModuleResolver` and `SymbolResolver` provides import-aware call resolution. BM25 provides keyword search. Optional PyO3 bindings expose a `HappyRepo` Python class.
 
 - **Codex fork** (`core/`, `cli/`, `tui/`, `exec/`, etc.) — Forked from OpenAI's Codex CLI. The 13 code graph tools are registered as handlers in `core/src/tools/handlers/code_graph.rs` and wired into Codex's `ToolRouter`. A `SharedRepoHandle` (`Arc<RwLock<Option<RepoHandle>>>`) persists at the `SessionServices` level, populated by a background indexing task spawned at session start.
+
+- **Mode adapters** (`adapters/`, `python/happy_faster_code/launch.py`) — Isolated integration tiers (`all-in-one`, `mcp`, `skills`) with a shared tool contract (`adapters/tool_contracts/code_graph_tools.json`) and launcher entrypoint (`happy-launch`).
 
 ## Key Files
 
@@ -26,6 +28,8 @@ Two main components:
 | `core/src/tools/handlers/code_graph.rs` | 13 tool handlers + `start_code_graph_indexing()` + `SharedRepoHandle` |
 | `core/src/tools/spec.rs` | Tool registration, `build_specs()` with `code_graph_repo` parameter |
 | `core/src/state/service.rs` | `SessionServices` holding the `SharedRepoHandle` |
+| `python/happy_faster_code/launch.py` | Mode-aware launcher for `all-in-one`, `mcp`, and `skills` |
+| `adapters/tool_contracts/code_graph_tools.json` | Shared tool contract across adapter tiers |
 
 ## Build Commands
 

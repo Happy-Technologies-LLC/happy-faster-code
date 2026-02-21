@@ -1,11 +1,8 @@
 """Tests for the RLM orchestration layer (config, tools, orchestrator)."""
 
-import os
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
-
-import pytest
 
 
 class TestConfig:
@@ -14,6 +11,7 @@ class TestConfig:
         monkeypatch.delenv("HAPPY_PROVIDER", raising=False)
         monkeypatch.delenv("HAPPY_MODEL", raising=False)
         monkeypatch.delenv("HAPPY_WORKER_MODEL", raising=False)
+        monkeypatch.delenv("HAPPY_MODE", raising=False)
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
@@ -25,6 +23,7 @@ class TestConfig:
         assert config["api_key"] == ""
         assert config["api_base"] is None
         assert config["worker_model"] is None
+        assert config["mode"] == "all-in-one"
         assert "litellm_model" in config
 
     def test_load_config_env_overrides(self, monkeypatch):
@@ -32,6 +31,7 @@ class TestConfig:
         monkeypatch.setenv("HAPPY_PROVIDER", "openai")
         monkeypatch.setenv("HAPPY_MODEL", "gpt-4o")
         monkeypatch.setenv("HAPPY_WORKER_MODEL", "gpt-4o-mini")
+        monkeypatch.setenv("HAPPY_MODE", "mcp")
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key")
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
@@ -41,6 +41,7 @@ class TestConfig:
         assert config["provider"] == "openai"
         assert config["model"] == "gpt-4o"
         assert config["worker_model"] == "gpt-4o-mini"
+        assert config["mode"] == "mcp"
         assert config["api_key"] == "sk-test-key"
 
     def test_load_config_from_toml(self, monkeypatch):
@@ -48,6 +49,7 @@ class TestConfig:
         monkeypatch.delenv("HAPPY_PROVIDER", raising=False)
         monkeypatch.delenv("HAPPY_MODEL", raising=False)
         monkeypatch.delenv("HAPPY_WORKER_MODEL", raising=False)
+        monkeypatch.delenv("HAPPY_MODE", raising=False)
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
@@ -60,6 +62,7 @@ class TestConfig:
                 'model = "gpt-4o"\n'
                 'api_key = "sk-from-toml"\n'
                 'worker_model = "gpt-4o-mini"\n'
+                'mode = "skills"\n'
             )
 
             from happy_faster_code.config import load_config
@@ -69,6 +72,15 @@ class TestConfig:
             assert config["model"] == "gpt-4o"
             assert config["api_key"] == "sk-from-toml"
             assert config["worker_model"] == "gpt-4o-mini"
+            assert config["mode"] == "skills"
+
+    def test_invalid_mode_falls_back(self, monkeypatch):
+        monkeypatch.setenv("HAPPY_MODE", "unknown-mode")
+
+        from happy_faster_code.config import load_config
+
+        config = load_config("/nonexistent/path")
+        assert config["mode"] == "all-in-one"
 
     def test_litellm_model_anthropic(self, monkeypatch):
         """Anthropic provider should produce 'anthropic/model' litellm string."""

@@ -7,6 +7,7 @@ happycode combines:
 - A Rust-native structural code graph engine (`crates/happy-core`)
 - A Codex CLI runtime fork (`core`, `cli`, `tui`, `exec`, ...)
 - A Python orchestration package for recursive analysis (`python/happy_faster_code`)
+- Adapter tier scaffolding (`adapters/`) for `all-in-one`, `mcp`, and `skills`
 
 The design goal is to make repository structure queryable by tools, instead of repeatedly scanning raw files per question.
 
@@ -122,9 +123,40 @@ Core graph queries include:
 - If graph is not ready, tools return a retry message.
 - If `rlm_analyze` Python invocation fails, error explains package/install expectation.
 
-## 5. Module C: Python RLM Orchestration
+## 5. Module C: Adapter Isolation Layer
 
-### 5.1 Orchestrator Responsibilities
+### 5.1 Mode Selection
+
+Modes are resolved through:
+
+1. explicit CLI flag (`happy-launch --mode ...`)
+2. config/env (`HAPPY_MODE` / `.happy/agent.toml`)
+3. default (`all-in-one`)
+
+Supported modes:
+
+- `all-in-one`
+- `mcp`
+- `skills`
+
+### 5.2 Adapter Paths
+
+- `adapters/all_in_one/`: full in-process integration guidance
+- `adapters/mcp/`: MCP-oriented adapter guidance and future service boundary
+- `adapters/skills/`: skills/scripts adapter guidance
+- `adapters/tool_contracts/code_graph_tools.json`: shared tool names/params contract
+
+### 5.3 Contract Validation
+
+Use the repo script to detect drift between shared contract and Rust registration:
+
+```bash
+python3 scripts/verify_code_graph_contract.py
+```
+
+## 6. Module D: Python RLM Orchestration
+
+### 6.1 Orchestrator Responsibilities
 
 - Load config (`.happy/agent.toml` + env overrides)
 - Create `HappyRepo(path)`
@@ -136,39 +168,40 @@ Core graph queries include:
   - `rlm_query` alias (backward compatibility)
 - Run `RLM(...).completion(...)`
 
-### 5.2 Worker Delegation
+### 6.2 Worker Delegation
 
 - Worker delegation currently occurs through repeated `delegate(prompt)` calls.
 - Workers are configured by `worker_model` (or fallback to primary model).
 - This is model/provider-configurable via `litellm`, not hardcoded to single vendors.
 
-## 6. Retrieval and Search Design
+## 7. Retrieval and Search Design
 
 - Primary search in tool surface: BM25 over indexed element text.
 - Vector search exists in Python bindings as optional brute-force cosine index.
 - No HNSW ANN backend is currently used in this repository.
 
-## 7. Security and Sandboxing
+## 8. Security and Sandboxing
 
 - `rlm_analyze` currently runs as local `python3` subprocess.
 - gVisor/E2B sandbox integration is not currently part of this path.
 - Broader command sandboxing remains governed by Codex runtime policies.
 
-## 8. Testing and Validation
+## 9. Testing and Validation
 
 Current validated paths include:
 
 - `happy-core` unit tests for parsing/indexing/graph/query behavior.
 - Python tests for RLM helpers/orchestrator wiring.
-- Python `HappyRepo` integration tests now use an in-test synthetic fixture repo (no external clone dependency).
+- Python launcher tests for mode and command mapping.
+- Python `HappyRepo` integration tests use an in-test synthetic fixture repo.
 
-## 9. Known Gaps / Next Steps
+## 10. Known Gaps / Next Steps
 
 - Add direct `core`-level tests for `code_graph` tool handler behavior.
 - Add benchmark harnesses for reproducible latency/memory metrics.
 - Continue tightening docs and comments when tool surface changes.
 
-## 10. Document Metadata
+## 11. Document Metadata
 
 - Status: Current implementation reference
 - Target architecture: x86_64 / arm64 (Darwin/Linux)

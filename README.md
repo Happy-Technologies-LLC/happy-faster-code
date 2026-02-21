@@ -117,7 +117,31 @@ Python, TypeScript, JavaScript, TSX/JSX, Rust, Go, Java, C, C++ — with tree-si
 
 ## Integration Tiers
 
-See `docs/Integration Tiers.md` for collaboration options ranging from skills/scripts, to MCP server packaging, to full fork integration.
+Use `happy-launch` (or `HAPPY_MODE`) to choose an integration mode:
+
+```bash
+# Full in-process fork integration (default)
+happy-launch --mode all-in-one
+
+# MCP-oriented launch path
+happy-launch --mode mcp
+
+# Skills-first lightweight path
+happy-launch --mode skills
+```
+
+Adapter docs and shared contracts live under `adapters/`:
+
+- `adapters/all_in_one/`
+- `adapters/mcp/`
+- `adapters/skills/`
+- `adapters/tool_contracts/code_graph_tools.json`
+
+You can validate contract sync against Rust registration with:
+
+```bash
+python3 scripts/verify_code_graph_contract.py
+```
 
 ### Graph Edge Types
 

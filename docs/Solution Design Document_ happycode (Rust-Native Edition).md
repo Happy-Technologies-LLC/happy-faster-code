@@ -73,6 +73,23 @@ The following 13 code graph tools are public:
 - Delegation is exposed under both `delegate(...)` and backward-compatible alias `rlm_query(...)`.
 - Model/provider selection is configuration and environment driven (`litellm`), not hardcoded to specific vendors.
 
+### 3.5 Integration Tier Isolation
+
+The repository now isolates integration surfaces into explicit tiers:
+
+- `all-in-one`: in-process full fork integration (default).
+- `mcp`: MCP-oriented adapter path.
+- `skills`: lightweight skills/scripts path.
+
+Mode selection is available through:
+
+- `happy-launch --mode all-in-one|mcp|skills`
+- `HAPPY_MODE=all-in-one|mcp|skills`
+
+Shared adapter contract location:
+
+- `adapters/tool_contracts/code_graph_tools.json`
+
 ## 4. Technical Stack (Current)
 
 | Component | Technology |
