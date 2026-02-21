@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 # The native extension must be built via `maturin develop --features python`
-from happy_faster_code import HappyRepo
+from happy_code import HappyRepo
 
 
 @pytest.fixture(scope="module")

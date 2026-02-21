@@ -14,6 +14,7 @@ This project is primarily an **integration package** that stitches together thre
 - **Recursive orchestration** via `rlm_analyze` (`rlms` + `litellm`)
 
 The result: the LLM doesn't guess at relationships. It **knows** them.
+The canonical Python package namespace is `happy_code` (legacy `happy_faster_code` imports remain as compatibility shims).
 
 ## Why This Exists
 
@@ -48,6 +49,7 @@ happycode is not claiming a brand-new graph paradigm. The graph/indexing approac
 | **Incremental in-session updates** | Background watcher updates graph during session | Depends on user wiring/usage mode |
 
 If you only need graph APIs and can own custom agent glue, FastCode can be enough. If you want a pre-integrated terminal coding agent where Codex + graph tools + RLM are already stitched together, happycode is meant to reduce that setup work.
+`happy-rlm` is still useful as a standalone deep-analysis entrypoint, but the primary path is the full `happycode` runtime with integrated graph tools.
 
 ## Agent Tools
 
@@ -216,6 +218,28 @@ cargo test
 # With Python bindings (optional, requires Python 3.9+)
 pip install maturin
 maturin develop -m crates/happy-core/Cargo.toml --features python
+```
+
+## Prebuilt Binaries and Homebrew
+
+Tag pushes (`v*`) now publish prebuilt binaries to GitHub Releases for:
+- macOS (Apple Silicon + Intel)
+- Linux (x86_64)
+
+Artifacts are uploaded as:
+- `happycode-<tag>-aarch64-apple-darwin.tar.gz`
+- `happycode-<tag>-x86_64-apple-darwin.tar.gz`
+- `happycode-<tag>-x86_64-unknown-linux-gnu.tar.gz`
+
+Maintainer automation:
+- `.github/workflows/release-binaries.yml` builds and uploads release assets.
+- `.github/workflows/publish-homebrew.yml` updates a Homebrew tap formula from the release artifacts.
+- Configure repo variable `HOMEBREW_TAP_REPO` (example: `nczitzer/homebrew-happycode`) and secret `HOMEBREW_TAP_TOKEN` (token with write access to that tap).
+
+User install flow (after releases are published):
+```bash
+brew tap <owner>/happycode
+brew install happycode
 ```
 
 ## Acknowledgments

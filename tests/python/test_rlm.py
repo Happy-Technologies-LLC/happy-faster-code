@@ -17,7 +17,7 @@ class TestConfig:
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
-        from happy_faster_code.config import load_config
+        from happy_code.config import load_config
 
         config = load_config("/nonexistent/path")
         assert config["provider"] == "anthropic"
@@ -37,7 +37,7 @@ class TestConfig:
         monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key")
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
-        from happy_faster_code.config import load_config
+        from happy_code.config import load_config
 
         config = load_config("/nonexistent/path")
         assert config["provider"] == "openai"
@@ -67,7 +67,7 @@ class TestConfig:
                 'mode = "skills"\n'
             )
 
-            from happy_faster_code.config import load_config
+            from happy_code.config import load_config
 
             config = load_config(tmpdir)
             assert config["provider"] == "openai"
@@ -79,7 +79,7 @@ class TestConfig:
     def test_invalid_mode_falls_back(self, monkeypatch):
         monkeypatch.setenv("HAPPY_MODE", "unknown-mode")
 
-        from happy_faster_code.config import load_config
+        from happy_code.config import load_config
 
         config = load_config("/nonexistent/path")
         assert config["mode"] == "all-in-one"
@@ -91,7 +91,7 @@ class TestConfig:
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
-        from happy_faster_code.config import load_config
+        from happy_code.config import load_config
 
         config = load_config("/nonexistent/path")
         assert config["litellm_model"] == "anthropic/claude-sonnet-4-6"
@@ -103,7 +103,7 @@ class TestConfig:
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
-        from happy_faster_code.config import load_config
+        from happy_code.config import load_config
 
         config = load_config("/nonexistent/path")
         assert config["litellm_model"] == "gpt-4o"
@@ -117,7 +117,7 @@ class TestConfig:
         monkeypatch.setenv("HAPPY_VOLT_TOP_K", "5")
         monkeypatch.setenv("HAPPY_VOLT_BOOTSTRAP_QUERY", "important preferences")
 
-        from happy_faster_code.config import load_config
+        from happy_code.config import load_config
 
         config = load_config("/nonexistent/path")
         assert config["volt_enabled"] is True
@@ -134,7 +134,7 @@ class TestRlmTools:
         """Namespace should contain repo, read_file, and list_files."""
         mock_repo = MagicMock()
 
-        from happy_faster_code.rlm_tools import build_rlm_namespace
+        from happy_code.rlm_tools import build_rlm_namespace
 
         ns = build_rlm_namespace(mock_repo, "/tmp")
         assert "repo" in ns
@@ -146,7 +146,7 @@ class TestRlmTools:
         """read_file should read actual files."""
         mock_repo = MagicMock()
 
-        from happy_faster_code.rlm_tools import build_rlm_namespace
+        from happy_code.rlm_tools import build_rlm_namespace
 
         with tempfile.TemporaryDirectory() as tmpdir:
             test_file = Path(tmpdir) / "hello.txt"
@@ -160,7 +160,7 @@ class TestRlmTools:
         """read_file should return error string for missing files."""
         mock_repo = MagicMock()
 
-        from happy_faster_code.rlm_tools import build_rlm_namespace
+        from happy_code.rlm_tools import build_rlm_namespace
 
         ns = build_rlm_namespace(mock_repo, "/tmp")
         result = ns["read_file"]("does_not_exist_xyz123.txt")
@@ -170,7 +170,7 @@ class TestRlmTools:
         """list_files should find files matching glob pattern."""
         mock_repo = MagicMock()
 
-        from happy_faster_code.rlm_tools import build_rlm_namespace
+        from happy_code.rlm_tools import build_rlm_namespace
 
         with tempfile.TemporaryDirectory() as tmpdir:
             (Path(tmpdir) / "a.py").write_text("x")
@@ -187,7 +187,7 @@ class TestRlmTools:
         mock_repo = MagicMock()
         mock_repo.stats.return_value = {"nodes": 100, "files": 10}
 
-        from happy_faster_code.rlm_tools import build_system_prompt
+        from happy_code.rlm_tools import build_system_prompt
 
         prompt = build_system_prompt(mock_repo)
         assert "find_callers" in prompt
@@ -204,7 +204,7 @@ class TestRlmTools:
     def test_namespace_includes_recall_memory_when_present(self):
         mock_repo = MagicMock()
 
-        from happy_faster_code.rlm_tools import build_rlm_namespace
+        from happy_code.rlm_tools import build_rlm_namespace
 
         def recall_memory(_q: str) -> str:
             return "memory"
@@ -217,7 +217,7 @@ class TestRlmTools:
         mock_repo = MagicMock()
         mock_repo.stats.return_value = {"nodes": 10, "files": 3}
 
-        from happy_faster_code.rlm_tools import build_system_prompt
+        from happy_code.rlm_tools import build_system_prompt
 
         prompt = build_system_prompt(mock_repo, memory_context="1. user prefers python")
         assert "Memory Context (Volt/LCM)" in prompt
@@ -230,7 +230,7 @@ class TestWorker:
         """build_delegate should return a callable function."""
         mock_repo = MagicMock()
 
-        from happy_faster_code.worker import build_delegate
+        from happy_code.worker import build_delegate
 
         delegate = build_delegate(mock_repo, "/tmp", "gpt-4o-mini")
         assert callable(delegate)
@@ -238,14 +238,14 @@ class TestWorker:
 
 class TestVoltMemory:
     def test_build_hooks_disabled(self):
-        from happy_faster_code.volt_memory import build_volt_memory_hooks
+        from happy_code.volt_memory import build_volt_memory_hooks
 
         context, recall = build_volt_memory_hooks({"volt_enabled": False}, "query")
         assert context is None
         assert recall is None
 
     def test_build_hooks_uses_client(self, monkeypatch):
-        from happy_faster_code import volt_memory
+        from happy_code import volt_memory
 
         class FakeClient:
             def __init__(self, *args, **kwargs):
@@ -254,7 +254,7 @@ class TestVoltMemory:
             def search(self, query, *, conversation_id=None, top_k=8):
                 return [{"content": f"memory for {query}", "score": 0.9}]
 
-        monkeypatch.setattr("happy_faster_code.volt_memory.VoltMemoryClient", FakeClient)
+        monkeypatch.setattr("happy_code.volt_memory.VoltMemoryClient", FakeClient)
         context, recall = volt_memory.build_volt_memory_hooks(
             {
                 "volt_enabled": True,
@@ -275,13 +275,13 @@ class TestVoltMemory:
 class TestOrchestratorImport:
     def test_rlm_run_importable(self):
         """rlm_run should be importable from the package."""
-        from happy_faster_code import rlm_run
+        from happy_code import rlm_run
 
         assert callable(rlm_run)
 
     def test_load_config_importable(self):
         """load_config should be importable from the package."""
-        from happy_faster_code import load_config
+        from happy_code import load_config
 
         assert callable(load_config)
 
@@ -289,7 +289,7 @@ class TestOrchestratorImport:
 class TestOrchestratorRun:
     def test_run_overrides_volt_conversation_id(self, monkeypatch):
         """run() should pass explicit Volt conversation id override into memory hooks."""
-        from happy_faster_code import orchestrator
+        from happy_code import orchestrator
 
         repo_instance = MagicMock()
         repo_cls = MagicMock(return_value=repo_instance)
@@ -311,9 +311,9 @@ class TestOrchestratorRun:
             return (None, None)
 
         monkeypatch.setitem(sys.modules, "rlm", types.SimpleNamespace(RLM=FakeRLM))
-        monkeypatch.setattr("happy_faster_code.HappyRepo", repo_cls)
+        monkeypatch.setattr("happy_code.HappyRepo", repo_cls)
         monkeypatch.setattr(
-            "happy_faster_code.config.load_config",
+            "happy_code.config.load_config",
             lambda _path: {
                 "litellm_model": "anthropic/claude-sonnet-4-6",
                 "api_key": "",
@@ -323,19 +323,19 @@ class TestOrchestratorRun:
             },
         )
         monkeypatch.setattr(
-            "happy_faster_code.volt_memory.build_volt_memory_hooks",
+            "happy_code.volt_memory.build_volt_memory_hooks",
             fake_memory_hooks,
         )
         monkeypatch.setattr(
-            "happy_faster_code.rlm_tools.build_rlm_namespace",
+            "happy_code.rlm_tools.build_rlm_namespace",
             lambda repo, _path, **_kwargs: {"repo": repo},
         )
         monkeypatch.setattr(
-            "happy_faster_code.rlm_tools.build_system_prompt",
+            "happy_code.rlm_tools.build_system_prompt",
             lambda _repo, **_kwargs: "system",
         )
         monkeypatch.setattr(
-            "happy_faster_code.worker.build_delegate",
+            "happy_code.worker.build_delegate",
             lambda _repo, _path, _model, **_kwargs: (lambda prompt: prompt),
         )
 
@@ -351,7 +351,7 @@ class TestOrchestratorRun:
 
     def test_run_prefers_graph_rpc_when_configured(self, monkeypatch):
         """run() should use GraphRpcRepo when endpoint+token are provided."""
-        from happy_faster_code import orchestrator
+        from happy_code import orchestrator
 
         repo_instance = MagicMock()
         graph_rpc_cls = MagicMock(return_value=repo_instance)
@@ -369,10 +369,10 @@ class TestOrchestratorRun:
                 return FakeResult()
 
         monkeypatch.setitem(sys.modules, "rlm", types.SimpleNamespace(RLM=FakeRLM))
-        monkeypatch.setattr("happy_faster_code.HappyRepo", happy_repo_cls)
-        monkeypatch.setattr("happy_faster_code.graph_rpc.GraphRpcRepo", graph_rpc_cls)
+        monkeypatch.setattr("happy_code.HappyRepo", happy_repo_cls)
+        monkeypatch.setattr("happy_code.graph_rpc.GraphRpcRepo", graph_rpc_cls)
         monkeypatch.setattr(
-            "happy_faster_code.config.load_config",
+            "happy_code.config.load_config",
             lambda _path: {
                 "litellm_model": "anthropic/claude-sonnet-4-6",
                 "api_key": "",
@@ -381,15 +381,15 @@ class TestOrchestratorRun:
             },
         )
         monkeypatch.setattr(
-            "happy_faster_code.rlm_tools.build_rlm_namespace",
+            "happy_code.rlm_tools.build_rlm_namespace",
             lambda repo, _path, **_kwargs: {"repo": repo},
         )
         monkeypatch.setattr(
-            "happy_faster_code.rlm_tools.build_system_prompt",
+            "happy_code.rlm_tools.build_system_prompt",
             lambda _repo, **_kwargs: "system",
         )
         monkeypatch.setattr(
-            "happy_faster_code.worker.build_delegate",
+            "happy_code.worker.build_delegate",
             lambda _repo, _path, _model, **_kwargs: (lambda prompt: prompt),
         )
 
@@ -413,7 +413,7 @@ class TestOrchestratorRun:
 
     def test_run_falls_back_to_snapshot_when_rpc_unavailable(self, monkeypatch):
         """run() should fallback to elements snapshot if graph RPC init fails."""
-        from happy_faster_code import orchestrator
+        from happy_code import orchestrator
 
         repo_instance = MagicMock()
         graph_rpc_cls = MagicMock(side_effect=RuntimeError("rpc down"))
@@ -432,10 +432,10 @@ class TestOrchestratorRun:
                 return FakeResult()
 
         monkeypatch.setitem(sys.modules, "rlm", types.SimpleNamespace(RLM=FakeRLM))
-        monkeypatch.setattr("happy_faster_code.HappyRepo", happy_repo_cls)
-        monkeypatch.setattr("happy_faster_code.graph_rpc.GraphRpcRepo", graph_rpc_cls)
+        monkeypatch.setattr("happy_code.HappyRepo", happy_repo_cls)
+        monkeypatch.setattr("happy_code.graph_rpc.GraphRpcRepo", graph_rpc_cls)
         monkeypatch.setattr(
-            "happy_faster_code.config.load_config",
+            "happy_code.config.load_config",
             lambda _path: {
                 "litellm_model": "anthropic/claude-sonnet-4-6",
                 "api_key": "",
@@ -444,15 +444,15 @@ class TestOrchestratorRun:
             },
         )
         monkeypatch.setattr(
-            "happy_faster_code.rlm_tools.build_rlm_namespace",
+            "happy_code.rlm_tools.build_rlm_namespace",
             lambda repo, _path, **_kwargs: {"repo": repo},
         )
         monkeypatch.setattr(
-            "happy_faster_code.rlm_tools.build_system_prompt",
+            "happy_code.rlm_tools.build_system_prompt",
             lambda _repo, **_kwargs: "system",
         )
         monkeypatch.setattr(
-            "happy_faster_code.worker.build_delegate",
+            "happy_code.worker.build_delegate",
             lambda _repo, _path, _model, **_kwargs: (lambda prompt: prompt),
         )
 
@@ -478,7 +478,7 @@ class TestOrchestratorRun:
 
     def test_run_uses_elements_snapshot_when_provided(self, monkeypatch):
         """run() should build HappyRepo from snapshot when elements_file is passed."""
-        from happy_faster_code import orchestrator
+        from happy_code import orchestrator
 
         repo_instance = MagicMock()
         repo_cls = MagicMock()
@@ -496,9 +496,9 @@ class TestOrchestratorRun:
                 return FakeResult()
 
         monkeypatch.setitem(sys.modules, "rlm", types.SimpleNamespace(RLM=FakeRLM))
-        monkeypatch.setattr("happy_faster_code.HappyRepo", repo_cls)
+        monkeypatch.setattr("happy_code.HappyRepo", repo_cls)
         monkeypatch.setattr(
-            "happy_faster_code.config.load_config",
+            "happy_code.config.load_config",
             lambda _path: {
                 "litellm_model": "anthropic/claude-sonnet-4-6",
                 "api_key": "",
@@ -507,15 +507,15 @@ class TestOrchestratorRun:
             },
         )
         monkeypatch.setattr(
-            "happy_faster_code.rlm_tools.build_rlm_namespace",
+            "happy_code.rlm_tools.build_rlm_namespace",
             lambda repo, _path, **_kwargs: {"repo": repo},
         )
         monkeypatch.setattr(
-            "happy_faster_code.rlm_tools.build_system_prompt",
+            "happy_code.rlm_tools.build_system_prompt",
             lambda _repo, **_kwargs: "system",
         )
         monkeypatch.setattr(
-            "happy_faster_code.worker.build_delegate",
+            "happy_code.worker.build_delegate",
             lambda _repo, _path, _model, **_kwargs: (lambda prompt: prompt),
         )
 
@@ -532,7 +532,7 @@ class TestOrchestratorRun:
 
     def test_run_uses_path_indexing_without_snapshot(self, monkeypatch):
         """run() should build HappyRepo from path when elements_file is missing."""
-        from happy_faster_code import orchestrator
+        from happy_code import orchestrator
 
         repo_instance = MagicMock()
         repo_cls = MagicMock(return_value=repo_instance)
@@ -549,9 +549,9 @@ class TestOrchestratorRun:
                 return FakeResult()
 
         monkeypatch.setitem(sys.modules, "rlm", types.SimpleNamespace(RLM=FakeRLM))
-        monkeypatch.setattr("happy_faster_code.HappyRepo", repo_cls)
+        monkeypatch.setattr("happy_code.HappyRepo", repo_cls)
         monkeypatch.setattr(
-            "happy_faster_code.config.load_config",
+            "happy_code.config.load_config",
             lambda _path: {
                 "litellm_model": "anthropic/claude-sonnet-4-6",
                 "api_key": "",
@@ -560,15 +560,15 @@ class TestOrchestratorRun:
             },
         )
         monkeypatch.setattr(
-            "happy_faster_code.rlm_tools.build_rlm_namespace",
+            "happy_code.rlm_tools.build_rlm_namespace",
             lambda repo, _path, **_kwargs: {"repo": repo},
         )
         monkeypatch.setattr(
-            "happy_faster_code.rlm_tools.build_system_prompt",
+            "happy_code.rlm_tools.build_system_prompt",
             lambda _repo, **_kwargs: "system",
         )
         monkeypatch.setattr(
-            "happy_faster_code.worker.build_delegate",
+            "happy_code.worker.build_delegate",
             lambda _repo, _path, _model, **_kwargs: (lambda prompt: prompt),
         )
 

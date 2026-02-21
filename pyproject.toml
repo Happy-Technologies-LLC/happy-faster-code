@@ -15,8 +15,8 @@ dependencies = [
 ]
 
 [project.scripts]
-happy-rlm = "happy_faster_code.orchestrator:main"
-happy-launch = "happy_faster_code.launch:main"
+happy-rlm = "happy_code.orchestrator:main"
+happy-launch = "happy_code.launch:main"
 
 [project.optional-dependencies]
 dev = [
@@ -28,4 +28,4 @@ dev = [
 manifest-path = "crates/happy-core/Cargo.toml"
 features = ["python"]
 python-source = "python"
-module-name = "happy_faster_code.happy_core"
+module-name = "happy_code.happy_core"

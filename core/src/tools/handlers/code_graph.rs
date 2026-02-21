@@ -531,7 +531,7 @@ impl CodeGraphDispatcher {
         let output_result = tokio::process::Command::new("python3")
             .args([
                 "-m",
-                "happy_faster_code.orchestrator",
+                "happy_code.orchestrator",
                 "--path",
                 &cwd_str,
                 "--query",

@@ -1,0 +1,125 @@
+name: Publish Homebrew Formula
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish in the tap (for example: v0.1.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  update-tap:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+      SOURCE_REPO: ${{ github.repository }}
+      TAP_REPO: ${{ vars.HOMEBREW_TAP_REPO }}
+      TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Validate workflow configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${TAP_REPO}" ]]; then
+            echo "Missing repo variable HOMEBREW_TAP_REPO (example: nczitzer/homebrew-happycode)" >&2
+            exit 1
+          fi
+          if [[ -z "${TAP_TOKEN}" ]]; then
+            echo "Missing secret HOMEBREW_TAP_TOKEN with write access to ${TAP_REPO}" >&2
+            exit 1
+          fi
+
+      - name: Download release artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          gh release download "${RELEASE_TAG}" --repo "${SOURCE_REPO}" \
+            --pattern "happycode-${RELEASE_TAG}-*.tar.gz" \
+            --dir dist
+
+      - name: Calculate checksums
+        id: sums
+        shell: bash
+        run: |
+          set -euo pipefail
+          arm="dist/happycode-${RELEASE_TAG}-aarch64-apple-darwin.tar.gz"
+          intel="dist/happycode-${RELEASE_TAG}-x86_64-apple-darwin.tar.gz"
+          linux="dist/happycode-${RELEASE_TAG}-x86_64-unknown-linux-gnu.tar.gz"
+
+          for file in "$arm" "$intel" "$linux"; do
+            if [[ ! -f "$file" ]]; then
+              echo "Missing required release asset: $file" >&2
+              exit 1
+            fi
+          done
+
+          echo "arm_sha=$(sha256sum "$arm" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "intel_sha=$(sha256sum "$intel" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "linux_sha=$(sha256sum "$linux" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Clone tap repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/${TAP_REPO}.git" tap
+
+      - name: Write formula
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p tap/Formula
+          cat > tap/Formula/happycode.rb <<FORMULA
+class Happycode < Formula
+  desc "Code-graph-aware AI coding agent built on OpenAI Codex CLI"
+  homepage "https://github.com/${SOURCE_REPO}"
+  version "${{ steps.sums.outputs.version }}"
+  license "Apache-2.0"
+
+  on_macos do
+    if Hardware::CPU.arm?
+      url "https://github.com/${SOURCE_REPO}/releases/download/${RELEASE_TAG}/happycode-${RELEASE_TAG}-aarch64-apple-darwin.tar.gz"
+      sha256 "${{ steps.sums.outputs.arm_sha }}"
+    else
+      url "https://github.com/${SOURCE_REPO}/releases/download/${RELEASE_TAG}/happycode-${RELEASE_TAG}-x86_64-apple-darwin.tar.gz"
+      sha256 "${{ steps.sums.outputs.intel_sha }}"
+    end
+  end
+
+  on_linux do
+    url "https://github.com/${SOURCE_REPO}/releases/download/${RELEASE_TAG}/happycode-${RELEASE_TAG}-x86_64-unknown-linux-gnu.tar.gz"
+    sha256 "${{ steps.sums.outputs.linux_sha }}"
+  end
+
+  def install
+    bin.install "happycode"
+  end
+
+  test do
+    assert_match "Usage", shell_output("#{bin}/happycode --help")
+  end
+end
+FORMULA
+
+      - name: Commit and push formula update
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/happycode.rb
+          if git diff --cached --quiet; then
+            echo "No formula changes detected."
+            exit 0
+          fi
+          git commit -m "happycode ${RELEASE_TAG}"
+          git push origin HEAD

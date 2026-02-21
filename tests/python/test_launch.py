@@ -6,7 +6,7 @@ import json
 
 
 def test_build_launch_command_all_in_one():
-    from happy_faster_code.launch import build_launch_command
+    from happy_code.launch import build_launch_command
 
     cmd, env = build_launch_command("all-in-one", ["--help"])
     assert cmd == ["happycode", "--help"]
@@ -14,7 +14,7 @@ def test_build_launch_command_all_in_one():
 
 
 def test_build_launch_command_mcp():
-    from happy_faster_code.launch import build_launch_command
+    from happy_code.launch import build_launch_command
 
     cmd, env = build_launch_command("mcp", [])
     assert cmd == ["happycode", "mcp-server"]
@@ -22,7 +22,7 @@ def test_build_launch_command_mcp():
 
 
 def test_build_launch_command_skills():
-    from happy_faster_code.launch import build_launch_command
+    from happy_code.launch import build_launch_command
 
     cmd, env = build_launch_command("skills", ["exec", "--help"])
     assert cmd == ["happycode", "exec", "--help"]
@@ -30,7 +30,7 @@ def test_build_launch_command_skills():
 
 
 def test_main_uses_mode_from_config(monkeypatch, capsys):
-    from happy_faster_code import launch
+    from happy_code import launch
 
     def fake_load_config(_):
         return {"mode": "mcp"}
@@ -45,7 +45,7 @@ def test_main_uses_mode_from_config(monkeypatch, capsys):
 
 
 def test_main_explicit_mode_overrides_config(monkeypatch, capsys):
-    from happy_faster_code import launch
+    from happy_code import launch
 
     def fake_load_config(_):
         return {"mode": "mcp"}

@@ -14,7 +14,7 @@ Three main components:
 
 - **Codex fork** (`core/`, `cli/`, `tui/`, `exec/`, etc.) — Forked from OpenAI's Codex CLI. The 13 code graph tools are registered as handlers in `core/src/tools/handlers/code_graph.rs` and wired into Codex's `ToolRouter`. A `SharedRepoHandle` (`Arc<RwLock<Option<RepoHandle>>>`) persists at the `SessionServices` level, populated by a background indexing task spawned at session start.
 
-- **Mode adapters** (`adapters/`, `python/happy_faster_code/launch.py`) — Isolated integration tiers (`all-in-one`, `mcp`, `skills`) with a shared tool contract (`adapters/tool_contracts/code_graph_tools.json`) and launcher entrypoint (`happy-launch`).
+- **Mode adapters** (`adapters/`, `python/happy_code/launch.py`) — Isolated integration tiers (`all-in-one`, `mcp`, `skills`) with a shared tool contract (`adapters/tool_contracts/code_graph_tools.json`) and launcher entrypoint (`happy-launch`).
 
 ## Key Files
 
@@ -28,7 +28,7 @@ Three main components:
 | `core/src/tools/handlers/code_graph.rs` | 13 tool handlers + `start_code_graph_indexing()` + `SharedRepoHandle` |
 | `core/src/tools/spec.rs` | Tool registration, `build_specs()` with `code_graph_repo` parameter |
 | `core/src/state/service.rs` | `SessionServices` holding the `SharedRepoHandle` |
-| `python/happy_faster_code/launch.py` | Mode-aware launcher for `all-in-one`, `mcp`, and `skills` |
+| `python/happy_code/launch.py` | Mode-aware launcher for `all-in-one`, `mcp`, and `skills` |
 | `adapters/tool_contracts/code_graph_tools.json` | Shared tool contract across adapter tiers |
 
 ## Build Commands

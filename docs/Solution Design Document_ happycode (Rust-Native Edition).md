@@ -68,7 +68,7 @@ The following 13 code graph tools are public:
 
 ### 3.4 Python RLM Orchestration
 
-- `rlm_analyze` launches `python3 -m happy_faster_code.orchestrator`.
+- `rlm_analyze` launches `python3 -m happy_code.orchestrator`.
 - Orchestrator builds `HappyRepo` and RLM tool namespace.
 - Delegation is exposed under both `delegate(...)` and backward-compatible alias `rlm_query(...)`.
 - Model/provider selection is configuration and environment driven (`litellm`), not hardcoded to specific vendors.

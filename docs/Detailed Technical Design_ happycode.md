@@ -6,7 +6,7 @@ happycode combines:
 
 - A Rust-native structural code graph engine (`crates/happy-core`)
 - A Codex CLI runtime fork (`core`, `cli`, `tui`, `exec`, ...)
-- A Python orchestration package for recursive analysis (`python/happy_faster_code`)
+- A Python orchestration package for recursive analysis (`python/happy_code`)
 - Adapter tier scaffolding (`adapters/`) for `all-in-one`, `mcp`, and `skills`
 
 The design goal is to make repository structure queryable by tools, instead of repeatedly scanning raw files per question.
@@ -31,7 +31,7 @@ flowchart TD
     FW --> UPD[index_single_file/update_file]
     UPD --> RG
 
-    TR -->|rlm_analyze| PY[python3 -m happy_faster_code.orchestrator]
+    TR -->|rlm_analyze| PY[python3 -m happy_code.orchestrator]
     PY --> HR[HappyRepo (PyO3)]
     HR --> RG2[Fresh graph in Python process]
 ```
