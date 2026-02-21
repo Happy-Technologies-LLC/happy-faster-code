@@ -5,4 +5,7 @@ try:
 except ImportError:
     HappyRepo = None
 
-__all__ = ["HappyRepo"]
+from happy_faster_code.config import load_config
+from happy_faster_code.orchestrator import run as rlm_run
+
+__all__ = ["HappyRepo", "rlm_run", "load_config"]

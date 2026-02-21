@@ -61,6 +61,26 @@ impl GlobalIndex {
         self.file_map.get(file_path).map(|v| v.clone())
     }
 
+    /// Remove all entries associated with a file path.
+    pub fn remove_file(&self, file_path: &str) {
+        // Remove file_map → module_map entry
+        if let Some((_, module_path)) = self.file_map.remove(file_path) {
+            self.module_map.remove(&module_path);
+        }
+
+        // Remove all export_map entries from this file
+        let mut empty_keys = Vec::new();
+        for mut entry in self.export_map.iter_mut() {
+            entry.value_mut().retain(|(fp, _)| fp != file_path);
+            if entry.value().is_empty() {
+                empty_keys.push(entry.key().clone());
+            }
+        }
+        for key in empty_keys {
+            self.export_map.remove(&key);
+        }
+    }
+
     pub fn stats(&self) -> (usize, usize, usize) {
         (self.file_map.len(), self.module_map.len(), self.export_map.len())
     }
@@ -119,5 +139,55 @@ mod tests {
         assert_eq!(index.resolve_module("src.auth"), Some("/repo/src/auth.py".into()));
         assert_eq!(index.resolve_symbol("login").len(), 1);
         assert_eq!(index.file_to_module("/repo/src/auth.py"), Some("src.auth".into()));
+    }
+
+    #[test]
+    fn test_remove_file() {
+        let elements = vec![
+            CodeElement {
+                id: "file_auth".into(),
+                element_type: ElementType::File,
+                name: "auth.py".into(),
+                file_path: "/repo/src/auth.py".into(),
+                relative_path: "src/auth.py".into(),
+                language: "python".into(),
+                start_line: 1,
+                end_line: 50,
+                code: String::new(),
+                signature: None,
+                docstring: None,
+                summary: None,
+                metadata: HashMap::new(),
+            },
+            CodeElement {
+                id: "func_login".into(),
+                element_type: ElementType::Function,
+                name: "login".into(),
+                file_path: "/repo/src/auth.py".into(),
+                relative_path: "src/auth.py".into(),
+                language: "python".into(),
+                start_line: 5,
+                end_line: 20,
+                code: "def login(): pass".into(),
+                signature: Some("def login():".into()),
+                docstring: None,
+                summary: None,
+                metadata: HashMap::new(),
+            },
+        ];
+
+        let index = GlobalIndex::new();
+        index.build(&elements, "/repo");
+        assert_eq!(index.resolve_symbol("login").len(), 1);
+
+        // Remove the file
+        index.remove_file("/repo/src/auth.py");
+
+        // Module mapping should be gone
+        assert_eq!(index.resolve_module("src.auth"), None);
+        assert_eq!(index.file_to_module("/repo/src/auth.py"), None);
+
+        // Export map should be cleaned
+        assert_eq!(index.resolve_symbol("login").len(), 0);
     }
 }

@@ -31,8 +31,10 @@ impl HappyRepo {
         let elements = indexer::walk_and_index(path);
 
         let mut graph = RepositoryGraph::new();
-        graph.build_from_elements(&elements);
+        graph.build_from_elements(&elements, path);
 
+        // GlobalIndex is now built inside build_from_elements, but we still
+        // need a separate one for the PyO3 wrapper's direct resolve methods.
         let global_index = GlobalIndex::new();
         global_index.build(&elements, path);
 

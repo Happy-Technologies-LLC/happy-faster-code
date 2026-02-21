@@ -1,5 +1,5 @@
 pub mod bm25;
-pub mod hnsw;
+pub mod cosine;
 
 pub use bm25::BM25Index;
-pub use hnsw::VectorIndex;
+pub use cosine::VectorIndex;

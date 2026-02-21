@@ -36,3 +36,6 @@ Thumbs.db
 
 # Happy index cache
 .happy/
+
+# Backup of old CLI (replaced by Codex fork)
+/crates/happy-cli.bak/

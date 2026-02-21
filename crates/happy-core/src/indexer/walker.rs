@@ -57,8 +57,34 @@ pub fn walk_and_index(repo_path: &str) -> Vec<CodeElement> {
     elements.into_inner().unwrap_or_default()
 }
 
+/// Index a single file and return its code elements.
+/// Used for incremental re-indexing when a file changes during a session.
+pub fn index_single_file(file_path: &str, repo_root: &str) -> Option<Vec<CodeElement>> {
+    let path = Path::new(file_path);
+    let root = Path::new(repo_root);
+
+    let lang = SupportedLanguage::from_extension(&path.to_string_lossy())?;
+    let code = std::fs::read_to_string(path).ok()?;
+
+    let mut parser = Parser::new();
+    let tree = parser.parse(&code, lang)?;
+
+    let relative = path.strip_prefix(root)
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|_| file_path.to_string());
+
+    Some(extract_elements_from_tree(
+        &tree,
+        &code,
+        file_path,
+        &relative,
+        lang,
+        repo_root,
+    ))
+}
+
 /// Extract code elements from a parsed tree-sitter AST.
-fn extract_elements_from_tree(
+pub fn extract_elements_from_tree(
     tree: &tree_sitter::Tree,
     code: &str,
     file_path: &str,
@@ -626,5 +652,31 @@ public class UserService {
         assert!(names.contains(&"UserService"), "Should find class: {:?}", names);
         assert!(names.contains(&"processUser"), "Should find method: {:?}", names);
         assert!(names.contains(&"calculate"), "Should find method: {:?}", names);
+    }
+
+    #[test]
+    fn test_index_single_file() {
+        use std::io::Write;
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("test.py");
+        {
+            let mut f = std::fs::File::create(&file_path).unwrap();
+            writeln!(f, "def hello():").unwrap();
+            writeln!(f, "    return 'world'").unwrap();
+        }
+
+        let file_str = file_path.to_string_lossy().to_string();
+        let repo_root = dir.path().to_string_lossy().to_string();
+        let elements = index_single_file(&file_str, &repo_root).unwrap();
+
+        // Should have a File element + a Function element
+        assert!(elements.len() >= 2, "Expected at least 2 elements, got {}", elements.len());
+
+        let names: Vec<&str> = elements.iter().map(|e| e.name.as_str()).collect();
+        assert!(names.contains(&"hello"), "Should find function hello: {:?}", names);
+
+        let types: Vec<ElementType> = elements.iter().map(|e| e.element_type).collect();
+        assert!(types.contains(&ElementType::File));
+        assert!(types.contains(&ElementType::Function));
     }
 }

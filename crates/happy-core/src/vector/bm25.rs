@@ -87,6 +87,32 @@ impl BM25Index {
         results
     }
 
+    /// Remove a document from the index.
+    pub fn remove_document(&mut self, doc_id: &str) {
+        if let Some(tokens) = self.documents.remove(doc_id) {
+            // Remove from inverted index
+            for token in &tokens {
+                if let Some(doc_ids) = self.inverted_index.get_mut(token) {
+                    doc_ids.retain(|id| id != doc_id);
+                    if doc_ids.is_empty() {
+                        self.inverted_index.remove(token);
+                    }
+                }
+            }
+
+            self.doc_lengths.remove(doc_id);
+            self.num_docs = self.num_docs.saturating_sub(1);
+
+            // Recalculate average document length
+            if self.num_docs > 0 {
+                let total_len: usize = self.doc_lengths.values().sum();
+                self.avg_doc_len = total_len as f64 / self.num_docs as f64;
+            } else {
+                self.avg_doc_len = 0.0;
+            }
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.num_docs
     }
@@ -136,5 +162,29 @@ mod tests {
         let results = index.search("authentication login", 10);
         assert!(!results.is_empty());
         assert_eq!(results[0].0, "high");
+    }
+
+    #[test]
+    fn test_bm25_remove_document() {
+        let mut index = BM25Index::new();
+        index.add_document("doc1", "the quick brown fox");
+        index.add_document("doc2", "the lazy brown dog");
+        assert_eq!(index.len(), 2);
+
+        // Remove doc1
+        index.remove_document("doc1");
+        assert_eq!(index.len(), 1);
+
+        // Searching for "fox" should no longer find doc1
+        let results = index.search("fox", 10);
+        assert!(results.iter().all(|(id, _)| id != "doc1"));
+
+        // doc2 should still be searchable
+        let results = index.search("dog", 10);
+        assert!(results.iter().any(|(id, _)| id == "doc2"));
+
+        // Removing non-existent doc is a no-op
+        index.remove_document("nonexistent");
+        assert_eq!(index.len(), 1);
     }
 }

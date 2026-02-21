@@ -19,28 +19,27 @@ tree-sitter.workspace = true
 petgraph.workspace = true
 rayon.workspace = true
 dashmap.workspace = true
-serde.workspace = true
+serde = { workspace = true, features = ["derive"] }
 bincode.workspace = true
 blake3.workspace = true
 smol_str.workspace = true
 ignore.workspace = true
 notify.workspace = true
-notify-debouncer-mini.workspace = true
 log.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
 
 pyo3 = { workspace = true, optional = true }
 
-# Tree-sitter language grammars
-tree-sitter-python = "0.23"
-tree-sitter-javascript = "0.23"
+# Tree-sitter language grammars (latest available versions)
+tree-sitter-python = "0.25"
+tree-sitter-javascript = "0.25"
 tree-sitter-typescript = "0.23"
-tree-sitter-rust = "0.23"
-tree-sitter-go = "0.23"
+tree-sitter-rust = "0.24"
+tree-sitter-go = "0.25"
 tree-sitter-java = "0.23"
 tree-sitter-cpp = "0.23"
-tree-sitter-c = "0.23"
+tree-sitter-c = "0.24"
 
 [dev-dependencies]
 tempfile = "3"
