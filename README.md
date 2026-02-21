@@ -108,6 +108,7 @@ export HAPPY_VOLT_API_BASE=http://localhost:3000
 The code graph indexes your working directory automatically in the background on session start. No separate indexing step required.
 `rlm_analyze` uses a local RPC bridge to query the live in-memory graph directly (with snapshot/path fallback), so it does not perform a second filesystem walk in normal usage.
 When `HAPPY_VOLT_ENABLED=true`, RLM orchestration also attaches optional long-session memory context from a configured Volt endpoint.
+In normal `happycode` runs, the current Codex conversation/thread ID is passed automatically to Volt lookups for per-thread memory scoping (override with `HAPPY_VOLT_CONVERSATION_ID` if needed).
 `rlms` and `litellm` are installed as package dependencies, so no separate manual install is required for `rlm_analyze`.
 
 ## Supported Languages

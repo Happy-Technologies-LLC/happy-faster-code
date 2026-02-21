@@ -14,6 +14,7 @@ def run(
     elements_file: str | None = None,
     graph_rpc_endpoint: str | None = None,
     graph_rpc_token: str | None = None,
+    volt_conversation_id: str | None = None,
 ) -> str:
     """Run the RLM agent with HappyRepo tools against a repository.
 
@@ -27,6 +28,7 @@ def run(
             exported by the Rust runtime to avoid re-indexing from disk.
         graph_rpc_endpoint: Optional host:port for local graph RPC.
         graph_rpc_token: Auth token for local graph RPC.
+        volt_conversation_id: Optional conversation/thread id override for Volt lookup scope.
 
     Returns:
         The agent's final response string.
@@ -41,6 +43,8 @@ def run(
 
     # Load config (TOML + env vars), allow model override
     config = load_config(path)
+    if volt_conversation_id:
+        config["volt_conversation_id"] = volt_conversation_id
     litellm_model = model if model is not None else config["litellm_model"]
 
     # Set API key in environment for LiteLLM
@@ -146,6 +150,11 @@ def main():
         default=None,
         help="Auth token for --graph-rpc-endpoint.",
     )
+    parser.add_argument(
+        "--volt-conversation-id",
+        default=None,
+        help="Optional conversation/thread id override for Volt memory lookup scope.",
+    )
 
     args = parser.parse_args()
 
@@ -158,6 +167,7 @@ def main():
         elements_file=args.elements_file,
         graph_rpc_endpoint=args.graph_rpc_endpoint,
         graph_rpc_token=args.graph_rpc_token,
+        volt_conversation_id=args.volt_conversation_id,
     )
 
     if args.json:

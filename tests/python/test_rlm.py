@@ -287,6 +287,68 @@ class TestOrchestratorImport:
 
 
 class TestOrchestratorRun:
+    def test_run_overrides_volt_conversation_id(self, monkeypatch):
+        """run() should pass explicit Volt conversation id override into memory hooks."""
+        from happy_faster_code import orchestrator
+
+        repo_instance = MagicMock()
+        repo_cls = MagicMock(return_value=repo_instance)
+        captured = {}
+
+        class FakeResult:
+            response = "ok"
+
+        class FakeRLM:
+            def __init__(self, backend, backend_kwargs):
+                self.backend = backend
+                self.backend_kwargs = backend_kwargs
+
+            def completion(self, **kwargs):
+                return FakeResult()
+
+        def fake_memory_hooks(cfg, _query):
+            captured["volt_conversation_id"] = cfg.get("volt_conversation_id")
+            return (None, None)
+
+        monkeypatch.setitem(sys.modules, "rlm", types.SimpleNamespace(RLM=FakeRLM))
+        monkeypatch.setattr("happy_faster_code.HappyRepo", repo_cls)
+        monkeypatch.setattr(
+            "happy_faster_code.config.load_config",
+            lambda _path: {
+                "litellm_model": "anthropic/claude-sonnet-4-6",
+                "api_key": "",
+                "provider": "anthropic",
+                "worker_model": None,
+                "volt_conversation_id": "from-config",
+            },
+        )
+        monkeypatch.setattr(
+            "happy_faster_code.volt_memory.build_volt_memory_hooks",
+            fake_memory_hooks,
+        )
+        monkeypatch.setattr(
+            "happy_faster_code.rlm_tools.build_rlm_namespace",
+            lambda repo, _path, **_kwargs: {"repo": repo},
+        )
+        monkeypatch.setattr(
+            "happy_faster_code.rlm_tools.build_system_prompt",
+            lambda _repo, **_kwargs: "system",
+        )
+        monkeypatch.setattr(
+            "happy_faster_code.worker.build_delegate",
+            lambda _repo, _path, _model, **_kwargs: (lambda prompt: prompt),
+        )
+
+        result = orchestrator.run(
+            path="/repo",
+            query="analyze",
+            volt_conversation_id="from-arg",
+            verbose=False,
+        )
+
+        assert result == "ok"
+        assert captured["volt_conversation_id"] == "from-arg"
+
     def test_run_prefers_graph_rpc_when_configured(self, monkeypatch):
         """run() should use GraphRpcRepo when endpoint+token are provided."""
         from happy_faster_code import orchestrator

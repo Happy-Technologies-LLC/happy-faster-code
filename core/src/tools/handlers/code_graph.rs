@@ -340,11 +340,12 @@ impl CodeGraphDispatcher {
         &self,
         tool_name: &str,
         arguments: &str,
+        conversation_id: Option<&str>,
     ) -> Result<String, FunctionCallError> {
         // rlm_analyze is handled separately because it invokes the Python
         // orchestrator and passes a serialized snapshot of the current graph.
         if tool_name == "rlm_analyze" {
-            return self.dispatch_rlm_analyze(arguments).await;
+            return self.dispatch_rlm_analyze(arguments, conversation_id).await;
         }
 
         let guard = self.repo.read().await;
@@ -463,7 +464,11 @@ impl CodeGraphDispatcher {
         }
     }
 
-    async fn dispatch_rlm_analyze(&self, arguments: &str) -> Result<String, FunctionCallError> {
+    async fn dispatch_rlm_analyze(
+        &self,
+        arguments: &str,
+        conversation_id: Option<&str>,
+    ) -> Result<String, FunctionCallError> {
         let args: RlmAnalyzeArgs = parse_arguments(arguments)?;
         let cwd = std::env::current_dir().map_err(|err| {
             FunctionCallError::Fatal(format!("failed to determine working directory: {err}"))
@@ -543,6 +548,14 @@ impl CodeGraphDispatcher {
                 "--quiet",
             ])
             .current_dir(&cwd)
+            .args({
+                let mut extra_args = Vec::new();
+                if let Some(cid) = conversation_id {
+                    extra_args.push("--volt-conversation-id".to_string());
+                    extra_args.push(cid.to_string());
+                }
+                extra_args
+            })
             .output()
             .await;
 
@@ -806,9 +819,14 @@ impl ToolHandler for CodeGraphToolHandler {
             }
         };
 
+        let conversation_id = invocation.session.conversation_id.to_string();
         let result = self
             .dispatcher
-            .dispatch(&invocation.tool_name, &arguments)
+            .dispatch(
+                &invocation.tool_name,
+                &arguments,
+                Some(conversation_id.as_str()),
+            )
             .await?;
 
         Ok(ToolOutput::Function {
