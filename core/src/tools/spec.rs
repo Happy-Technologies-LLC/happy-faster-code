@@ -1623,7 +1623,7 @@ pub(crate) fn build_specs(
 
 /// Register the happy-core code graph tools into the builder.
 /// A single `CodeGraphToolHandler` (backed by the session-level `SharedRepoHandle`)
-/// is registered for all 12 tool names so dispatch works as soon as the repo
+/// is registered for all code graph tool names so dispatch works as soon as the repo
 /// has been indexed.
 fn register_code_graph_tools(
     builder: &mut ToolRegistryBuilder,

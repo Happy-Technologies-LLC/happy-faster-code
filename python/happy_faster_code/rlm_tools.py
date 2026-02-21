@@ -104,9 +104,12 @@ Methods:
 ## list_files(pattern: str) -> list[str]
   Glob files in the repo. E.g. list_files("**/*.py") for all Python files.
 
-## rlm_query(prompt: str) -> str
+## delegate(prompt: str) -> str
   Delegate a sub-query to a worker model. Use this for parallelizable analysis.
   The worker has the same tools available.
+
+## rlm_query(prompt: str) -> str
+  Alias for delegate(prompt), kept for backward compatibility.
 
 ## Guidelines
 
@@ -114,7 +117,7 @@ Methods:
    to locate relevant code, then repo.get_source() to read it.
 2. Follow call chains: repo.find_callers() and repo.find_callees() trace
    function relationships. Combine with repo.get_source() for full context.
-3. For complex analysis, break into sub-tasks using rlm_query() to delegate
+3. For complex analysis, break into sub-tasks using delegate() (or rlm_query())
    independent investigations to worker models.
 4. Always store intermediate results in variables for later reference.
 5. Print your final answer clearly — the printed output is returned to the user.

@@ -1,93 +1,109 @@
-# **Solution Design Document: HappyFasterCode (Rust-Native Edition)**
+# Solution Design Document: HappyFasterCode (Rust-Native Edition)
 
-## **1\. Executive Summary**
+## 1. Executive Summary
 
-**HappyFasterCode** is an extreme-performance AI software engineering agent. Unlike its predecessor, HKUDS/FastCode, it utilizes a **Rust-native indexing core** and a **Recursive Language Model (RLM)** architecture. By "oxidizing" the structural analysis layer from the start, HappyFasterCode achieves sub-millisecond repository navigation, enabling the LLM to treat multi-million line codebases as a local, queryable variable.
+HappyFasterCode is a fork of OpenAI Codex CLI that adds a Rust-native code graph engine (`happy-core`) and exposes graph-native tools directly to the model runtime.
 
-## **2\. Core Objectives**
+As implemented today:
 
-* **Zero-Latency Navigation:** Sub-millisecond structural lookups (callers, dependencies, hierarchy) via Rust's Petgraph.  
-* **Recursive Precision:** Leveraging the RLM "Librarian Pattern" to decompose complex repo tasks into parallel sub-agent calls.  
-* **Memory Efficiency:** 80% reduction in footprint compared to Python-based indexing, allowing full-repo indexing on consumer hardware.
+- The core graph/indexing pipeline is in Rust (`tree-sitter` + `petgraph` + `rayon` + `dashmap`).
+- Codex sessions auto-start background indexing and incremental updates for the current working directory.
+- 13 public code graph tools are registered, including `rlm_analyze`.
+- Optional PyO3 bindings expose `HappyRepo` for Python orchestration.
 
-## **3\. Architectural Design**
+This document describes the shipped architecture, not aspirational design.
 
-### **3.1 The Rust-Native Engine (The "Core")**
+## 2. Core Objectives
 
-We skip the Python/NetworkX implementation and build the indexer in Rust:
+- Structural navigation over text-only search for code relationships.
+- Fast startup and low query latency through in-process indexed state.
+- Public recursive analysis path via Python RLM orchestration (`rlm_analyze`).
+- Keep implementation grounded in Codex runtime primitives (tool router, session services, sandbox model).
 
-* **Tree-sitter Parser:** High-speed, incremental AST parsing for all major languages (Python, TS, Rust, Go, C++).  
-* **Structural Graph (Petgraph):** A memory-dense, multi-layered graph representing imports, call chains, and inheritance.  
-* **The Bridge (PyO3):** The Rust core is exposed as a high-performance Python module (happy\_core).
+## 3. Implemented Architecture
 
-### **3.2 The RLM Orchestration Layer**
+### 3.1 Rust Indexing and Graph Core (`happy-core`)
 
-The agent interacts with the repository through a Python REPL. Instead of the LLM receiving a massive text context, it receives a Repo object.
+- Multi-language parsing: Python, JavaScript, TypeScript, TSX/JSX, Rust, Go, Java, C, C++.
+- Index extraction via parallel filesystem walk (`ignore` + `rayon`).
+- Graph storage via `petgraph::StableDiGraph` with node/edge lookup side indexes (`DashMap`).
+- Edge construction includes:
+  - `Defines`
+  - `Calls`
+  - `Imports`
+  - `Inherits`
+  - `References`
+  - `Implements`
+- Call resolution uses layered strategy:
+  1. same-file match
+  2. symbol resolver with import context
+  3. import/path heuristic
+  4. fallback by name
 
-1. **Orchestrator:** Writes a Python script: results \= repo.find\_callers("process\_payment").  
-2. **Execution:** The script executes at C-speed in the Rust core.  
-3. **Delegation:** If the results are too large, the agent spawns recursive child-agents to "skim" specific sub-graphs in parallel.
+### 3.2 Codex Runtime Integration (Fork Layer)
 
-## **4\. Technical Stack**
+- Session service owns `SharedRepoHandle = Arc<RwLock<Option<RepoHandle>>>`.
+- Startup path spawns background indexing for session CWD.
+- A file watcher incrementally updates graph + BM25 for changed files.
+- Tool registration occurs through Codex `ToolRouter`/`build_specs`.
+- Code graph tools are always registered; they return a friendly message until indexing is ready.
+
+### 3.3 Public Tool Surface
+
+The following 13 code graph tools are public:
+
+- `find_callers`
+- `find_callees`
+- `get_dependencies`
+- `get_dependents`
+- `get_subclasses`
+- `get_superclasses`
+- `find_code_path`
+- `get_related`
+- `search_code`
+- `get_code_source`
+- `repo_stats`
+- `list_indexed_files`
+- `rlm_analyze`
+
+### 3.4 Python RLM Orchestration
+
+- `rlm_analyze` launches `python3 -m happy_faster_code.orchestrator`.
+- Orchestrator builds `HappyRepo` and RLM tool namespace.
+- Delegation is exposed under both `delegate(...)` and backward-compatible alias `rlm_query(...)`.
+- Model/provider selection is configuration and environment driven (`litellm`), not hardcoded to specific vendors.
+
+## 4. Technical Stack (Current)
 
 | Component | Technology |
-| :---- | :---- |
-| **Indexing Engine** | **Rust** (Tree-sitter \+ Petgraph) |
-| **Interface Bridge** | **PyO3** (Rust to Python bindings) |
-| **RLM Framework** | Custom Async Python REPL |
-| **Parallelism** | **Rayon** (Rust) & **Asyncio** (Python) |
-| **Frontier Model** | Gemini 2.0 Flash / GPT-4o (Orchestration) |
-| **Worker Models** | Qwen-2.5-Coder-7B / Gemini 1.5 Flash (Recursive Execution) |
-| **Vector Engine** | **Hnswlib** (Rust implementation) |
+|---|---|
+| Structural indexing/graph | Rust, tree-sitter, petgraph |
+| Parallelism | rayon + ignore |
+| Concurrent state | dashmap |
+| Keyword retrieval | Custom BM25 (`happy-core`) |
+| Vector retrieval | Brute-force cosine index (optional path in PyO3) |
+| Python bridge | PyO3 (feature-gated) |
+| Agent runtime | Codex CLI fork (tokio/ratatui/reqwest) |
+| RLM orchestration | Python package + `rlm` + `litellm` |
 
-## **5\. Key Modules**
+## 5. Performance and Memory Notes
 
-### **Module A: happy-core (Rust)**
+- The repository currently does not ship formal benchmark artifacts proving specific numeric claims (for example, fixed microsecond latency or exact memory reduction percentages).
+- Performance is expected to scale better than grep-first approaches due to indexed graph traversal, but numbers should be treated as targets until benchmarked in-repo.
 
-The "Source of Truth" for the repository.
+## 6. Security and Execution Model
 
-* **Scanner:** Walks the filesystem, triggers Tree-sitter for each file.  
-* **Indexer:** Builds a directed graph of the entire workspace.  
-* **Query Engine:** Implements DFS/BFS and semantic similarity searches natively in Rust.
+- `rlm_analyze` currently executes Python as a local subprocess.
+- It does not currently run inside gVisor/E2B by default.
+- Command execution sandboxing behavior for shell/tool calls remains inherited from Codex runtime controls.
 
-### **Module B: The Recursive Librarian (Python)**
+## 7. Near-Term Roadmap
 
-The logic layer where the RLM lives.
+- Add benchmark harnesses and publish reproducible latency/memory metrics.
+- Expand direct integration tests for code graph tool handlers in `core`.
+- Keep Python orchestration docs and runtime aliases in sync as APIs evolve.
 
-* **Context Sandbox:** A controlled environment where the LLM can run Python scripts to query happy-core.  
-* **Fan-out Manager:** Manages the lifecycle of recursive sub-agents (e.g., spawning 10 workers to analyze 10 different modules).
+## 8. Document Metadata
 
-### **Module C: The Delta-Diff Engine**
-
-A high-speed patch generator that applies changes validated by the Rust core (ensuring no syntax errors are introduced during the refactor).
-
-## **6\. Implementation Roadmap**
-
-### **Phase 1: The Oxidized Foundation (Weeks 1-3)**
-
-* **Setup:** Initialize Rust workspace and integrate tree-sitter.  
-* **Indexing:** Build the initial Petgraph structure for Python and TypeScript.  
-* **Bindings:** Create the PyO3 bridge to expose the graph to Python.
-
-### **Phase 2: RLM Integration (Weeks 4-6)**
-
-* **REPL Development:** Build the sandboxed Python environment for the agent.  
-* **Recursive Logic:** Implement the rlm\_call function that allows the agent to delegate sub-tasks.  
-* **MCP Support:** Expose the Rust engine as a Model Context Protocol server for integration with Cursor/Claude Code.
-
-### **Phase 3: Scaling & Refinement (Weeks 7-9)**
-
-* **Multi-language Support:** Add Java, C++, and Go parsers.  
-* **Incremental Indexing:** Implement file-watchers to update the Rust graph in real-time as the user types.
-
-## **7\. Performance Benchmarks (Target)**
-
-* **Index Time (100k LoC):** \< 1.5 seconds.  
-* **Query Latency:** \< 500 microseconds.  
-* **Peak Memory:** \< 200MB for medium-sized projects.
-
-**Prepared for:** Antigravity Engineering Team
-
-**Project Lead:** Gemini/User
-
-**Version:** 2.0.0 (Rust-First)
+- Status: Implemented architecture baseline
+- Target platforms: x86_64 and arm64 (Darwin/Linux)

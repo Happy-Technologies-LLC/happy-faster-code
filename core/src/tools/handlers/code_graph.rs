@@ -206,7 +206,7 @@ impl CodeGraphDispatcher {
         let repo = guard.as_ref().ok_or_else(|| {
             FunctionCallError::RespondToModel(
                 "No repository has been indexed yet. The code graph tools require an indexed \
-                 codebase. Run `happycode index <path>` first, or wait for auto-indexing to complete."
+                 codebase. Wait for auto-indexing to complete and retry."
                     .to_string(),
             )
         })?;

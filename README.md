@@ -6,7 +6,7 @@
 
 **A code-graph-aware AI coding agent built on OpenAI Codex CLI.**
 
-HappyFasterCode extends [OpenAI's Codex CLI](https://github.com/openai/codex) with a Rust-native structural code graph engine. Before the LLM sees a single token, it builds a **full structural graph** of your entire codebase — every function call, every import chain, every class hierarchy, every dependency edge — then exposes that graph to the LLM as **12 additional tools** on top of Codex's existing read/write/execute capabilities.
+HappyFasterCode extends [OpenAI's Codex CLI](https://github.com/openai/codex) with a Rust-native structural code graph engine. Before the LLM sees a single token, it builds a **full structural graph** of your entire codebase — every function call, every import chain, every class hierarchy, every dependency edge — then exposes that graph to the LLM as **13 additional tools** on top of Codex's existing read/write/execute capabilities.
 
 The result: the LLM doesn't guess at relationships. It **knows** them.
 
@@ -31,7 +31,7 @@ HappyFasterCode adds a structural code graph layer to the Codex agent, giving th
 
 ## Agent Tools
 
-HappyFasterCode gives the LLM all of Codex's built-in tools **plus** 12 code graph navigation tools:
+HappyFasterCode gives the LLM all of Codex's built-in tools **plus** 13 code graph navigation tools:
 
 ### Code Graph Tools (unique to HappyFasterCode)
 
@@ -49,6 +49,7 @@ HappyFasterCode gives the LLM all of Codex's built-in tools **plus** 12 code gra
 | `get_related` | All symbols within N hops in the graph (multi-edge traversal) |
 | `repo_stats` | Node, edge, and file counts for the indexed graph |
 | `list_indexed_files` | All files indexed in the code graph |
+| `rlm_analyze` | Deep recursive analysis via the public Python RLM orchestrator |
 
 ### Codex Built-in Tools
 
@@ -104,7 +105,7 @@ Python, TypeScript, JavaScript, TSX/JSX, Rust, Go, Java, C, C++ — with tree-si
 │       └── store/            # Bincode serialization for cached indexes
 ├── core/                     # Codex core (forked from openai/codex)
 │   └── src/tools/handlers/
-│       └── code_graph.rs     # 12 tool handlers wired to happy-core APIs
+│       └── code_graph.rs     # 13 tool handlers wired to happy-core APIs
 ├── cli/                      # CLI binary (happycode)
 ├── tui/                      # Terminal UI (ratatui, from Codex)
 └── exec/                     # Sandboxed execution (from Codex)
@@ -112,7 +113,11 @@ Python, TypeScript, JavaScript, TSX/JSX, Rust, Go, Java, C, C++ — with tree-si
 
 **happy-core** — The indexing engine. Tree-sitter parses source files into AST nodes, the indexer extracts `CodeElement`s (functions, classes, modules) via parallel filesystem walking. The graph builder connects them via import/call/inheritance edges in a petgraph `StableDiGraph`. A `GlobalIndex` with `ModuleResolver` and `SymbolResolver` provides import-aware call resolution across files. BM25 provides keyword search. All data structures are concurrent (`DashMap`, `rayon`).
 
-**Codex integration** — The 12 code graph tools are registered as tool handlers in Codex's `ToolRouter`. A `SharedRepoHandle` (`Arc<RwLock<Option<RepoHandle>>>`) holds the graph state, populated by a background indexing task spawned at session start. Each tool call acquires a read lock and dispatches to the appropriate happy-core query.
+**Codex integration** — The 13 code graph tools are registered as tool handlers in Codex's `ToolRouter`. A `SharedRepoHandle` (`Arc<RwLock<Option<RepoHandle>>>`) holds the graph state, populated by a background indexing task spawned at session start. Each tool call acquires a read lock and dispatches to the appropriate happy-core query.
+
+## Integration Tiers
+
+See `docs/Integration Tiers.md` for collaboration options ranging from skills/scripts, to MCP server packaging, to full fork integration.
 
 ### Graph Edge Types
 
@@ -136,7 +141,7 @@ Call targets are resolved with a 4-tier priority system:
 ## Building from Source
 
 ```bash
-# Prerequisites: Rust 1.75+
+# Prerequisites: Rust 1.93.0+ (matches `rust-toolchain.toml`)
 cargo build --release
 
 # Run tests
@@ -157,6 +162,6 @@ HappyFasterCode builds on several excellent open-source projects:
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Apache-2.0 — see [LICENSE](LICENSE).
 
 Copyright (c) 2026 Happy Technologies LLC

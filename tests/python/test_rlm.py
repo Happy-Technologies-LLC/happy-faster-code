@@ -162,6 +162,7 @@ class TestRlmTools:
         assert "search" in prompt
         assert "read_file" in prompt
         assert "list_files" in prompt
+        assert "delegate" in prompt
         assert "rlm_query" in prompt
         assert "100" in prompt  # node count
         assert "10" in prompt  # file count

@@ -1,24 +1,42 @@
 """Integration tests for HappyRepo Python bindings."""
 
 import os
+import tempfile
+from pathlib import Path
+
 import pytest
 
 # The native extension must be built via `maturin develop --features python`
 from happy_faster_code import HappyRepo
 
-REFERENCE_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "..", "reference", "FastCode"
-)
-
 
 @pytest.fixture(scope="module")
 def repo():
-    """Index the FastCode reference repo once for all tests."""
-    assert os.path.isdir(REFERENCE_DIR), (
-        f"Reference repo not found at {REFERENCE_DIR}. "
-        "Clone it first: git clone https://github.com/HKUDS/FastCode reference/FastCode"
-    )
-    return HappyRepo(REFERENCE_DIR)
+    """Build and index a small synthetic repo fixture."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        (root / "helpers.py").write_text(
+            "def helper(query):\n"
+            "    return query.strip().lower()\n"
+        )
+        (root / "base.py").write_text(
+            "class BaseRetriever:\n"
+            "    pass\n"
+        )
+        (root / "hybrid.py").write_text(
+            "from base import BaseRetriever\n"
+            "from helpers import helper\n\n"
+            "class HybridRetriever(BaseRetriever):\n"
+            "    def search(self, query):\n"
+            "        return helper(query)\n"
+        )
+        (root / "main.py").write_text(
+            "from hybrid import HybridRetriever\n\n"
+            "def run(query):\n"
+            "    retriever = HybridRetriever()\n"
+            "    return retriever.search(query)\n"
+        )
+        yield HappyRepo(tmpdir)
 
 
 class TestIndexing:
@@ -43,7 +61,7 @@ class TestIndexing:
         assert all(isinstance(f, str) for f in tree)
 
     def test_path_property(self, repo):
-        assert repo.path == REFERENCE_DIR
+        assert os.path.isdir(repo.path)
 
 
 class TestGraphQueries:
@@ -115,7 +133,7 @@ class TestSource:
 
 class TestVectorSearch:
     def test_add_and_search_vectors(self, repo):
-        results = repo.search("function", 3)
+        results = repo.search("search", 3)
         if len(results) >= 2:
             ids = [r[0] for r in results]
             vectors = [[1.0, 0.0, 0.0] for _ in ids]

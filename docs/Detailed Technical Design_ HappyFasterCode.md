@@ -1,125 +1,174 @@
-# **Detailed Technical Design: HappyFasterCode**
+# Detailed Technical Design: HappyFasterCode
 
-## **1\. System Overview**
+## 1. System Overview
 
-HappyFasterCode is a hybrid Rust-Python engineering agent. It optimizes the "Code-to-Intelligence" pipeline by moving structural repo-graphing into a multi-threaded Rust core while exposing a high-level Python REPL for the agent's Recursive Language Model (RLM) reasoning.
+HappyFasterCode combines:
 
-## **2\. Core Components & Data Flow**
+- A Rust-native structural code graph engine (`crates/happy-core`)
+- A Codex CLI runtime fork (`core`, `cli`, `tui`, `exec`, ...)
+- A Python orchestration package for recursive analysis (`python/happy_faster_code`)
 
-### **2.1 Component Diagram**
+The design goal is to make repository structure queryable by tools, instead of repeatedly scanning raw files per question.
 
-graph TD  
-    User\[User Query\] \--\> Orchestrator\[Python RLM Orchestrator\]  
-    Orchestrator \--\> Sandbox\[Python REPL Sandbox\]  
-    Sandbox \--\> Bridge\[PyO3 Bridge Layer\]  
-    Bridge \--\> RustCore\[Rust Happy-Core\]  
-      
-    subgraph "Rust Happy-Core"  
-        Scanner\[Parallel File Scanner\] \--\> TS\[Tree-sitter Parsers\]  
-        TS \--\> Petgraph\[Multi-layer Structural Graph\]  
-        Petgraph \--\> Search\[Graph Query Engine\]  
-        Vector\[HNSW Vector Index\] \<--\> Search  
-    end  
-      
-    Orchestrator \--\> SubAgents\[Recursive Worker Agents\]  
-    SubAgents \--\> Sandbox
+## 2. Runtime Data Flow (Implemented)
 
-## **3\. Module A: Happy-Core (Rust)**
+```mermaid
+flowchart TD
+    U[User Query] --> C[Codex Session]
+    C --> TR[Tool Router]
 
-### **3.1 Structural Graph (Petgraph)**
+    TR -->|code graph tools| CG[CodeGraphDispatcher]
+    CG --> SRH[SharedRepoHandle Arc/RwLock]
+    SRH --> RG[RepositoryGraph + BM25]
 
-The core uses petgraph::stable\_graph to maintain a persistent, multi-edge graph of the repository.
+    C -->|startup| IDX[start_code_graph_indexing]
+    IDX --> WAI[walk_and_index]
+    WAI --> BLD[build_from_elements]
+    BLD --> RG
 
-* **Nodes:** Entities (File, Class, Function, Interface, Variable).  
-* **Edges:** Relationships (DEFINES, CALLS, IMPORTS, IMPLEMENTS, REFERENCES).  
-* **Performance:** Queries like "Find all transitive callers of X" are executed as a DFS/BFS in Rust, typically completing in \< 100μs.
+    C -->|background| FW[file watcher]
+    FW --> UPD[index_single_file/update_file]
+    UPD --> RG
 
-### **3.2 Tree-sitter Indexing**
+    TR -->|rlm_analyze| PY[python3 -m happy_faster_code.orchestrator]
+    PY --> HR[HappyRepo (PyO3)]
+    HR --> RG2[Fresh graph in Python process]
+```
 
-Instead of standard regex-based indexing, we use tree-sitter for accurate semantic extraction.
+Notes:
 
-* **Incremental Parsing:** Only modified files are re-parsed.  
-* **Language Support:** WASM-compiled grammars for Python, TS, Rust, Go, Java, and C++.
+- The in-session shared graph (`SharedRepoHandle`) is used by graph tools.
+- `rlm_analyze` currently builds/uses a Python-side `HappyRepo` in a subprocess path.
 
-### **3.3 Vector Search (HNSW)**
+## 3. Module A: Rust Core (`happy-core`)
 
-We utilize hnswlib-rs for local semantic search.
+### 3.1 Parsing and Element Extraction
 
-* **Embeddings:** Local storage of text-embedding-3-small vectors.  
-* **Hybrid Query:** The query engine combines Graph lookups with Vector results to find "The code that handles user login" by looking for both the LoginController class and functions semantically related to "authentication."
+- Parser dispatches by extension to tree-sitter grammars.
+- Indexer walks repo with gitignore-aware traversal.
+- Extracted elements include file/module/class/function/method/etc.
 
-## **4\. Module B: The Bridge (PyO3)**
+### 3.2 Graph Model
 
-The Rust core is compiled into a shared library (happy\_core.so) that can be imported as a native Python module.
+Node kinds include file/module/class/function/method/variable/interface/struct/enum.
 
-// Example PyO3 Bridge Structure  
-\#\[pyclass\]  
-struct HappyRepo {  
-    graph: Arc\<RwLock\<RepositoryGraph\>\>,  
-    vector\_index: Arc\<HnswIndex\>,  
-}
+Edge kinds include:
 
-\#\[pymethods\]  
-impl HappyRepo {  
-    \#\[new\]  
-    fn new(path: String) \-\> PyResult\<Self\> { ... }
+- `Defines`
+- `Calls`
+- `Imports`
+- `Inherits`
+- `References`
+- `Implements`
 
-    fn find\_callers(\&self, symbol: String) \-\> PyResult\<Vec\<String\>\> {  
-        // High-speed Rust traversal here  
-    }  
-}
+### 3.3 Relationship Construction
 
-## **5\. Module C: Recursive Language Model (RLM)**
+Build sequence:
 
-### **5.1 The "Librarian" Loop**
+1. Add nodes and element arena entries.
+2. Build global index (module map + symbol map).
+3. Add `Defines` edges.
+4. Add semantic edges: imports, calls, inheritance.
 
-The Orchestrator (Frontier Model) does not see code directly. It sees a Repo object and operates via a REPL:
+Call target resolution order:
 
-1. **Orchestrator:** Writes Python: deps \= repo.get\_dependencies("payment\_service.ts")  
-2. **REPL:** Executes code, returns structured metadata (e.g., "This file depends on 4 interfaces").  
-3. **Recursive Call:** If the Orchestrator identifies 10 files to check, it calls rlm\_batch(sub\_query, file\_list).
+1. same file
+2. symbol resolver (import-aware)
+3. import/path heuristic
+4. first-name fallback
 
-### **5.2 Parallel Delegation**
+### 3.4 Query Layer
 
-* **Fan-out:** 10 sub-agents (e.g., Gemini 1.5 Flash) are invoked via asynchronous API calls.  
-* **Context Compression:** Sub-agents are instructed to return *only* the specific logic relevant to the query, stripping boilerplate.  
-* **Fan-in:** The Orchestrator receives 10 high-signal summaries instead of 10,000 lines of raw code.
+Core graph queries include:
 
-## **6\. Implementation Specifications**
+- callers/callees
+- dependencies/dependents
+- subclasses/superclasses
+- shortest path
+- N-hop related nodes
+- file/source lookups and stats
 
-### **6.1 Performance Targets**
+## 4. Module B: Codex Tool Integration
 
-| Metric | Target |
-| :---- | :---- |
-| **Indexing Rate** | 50,000 LoC / second |
-| **Max Graph Nodes** | 1,000,000+ |
-| **REPL Turn Latency** | \< 200ms (Local execution) |
-| **Memory Ceiling** | 512MB (Base index for 1k files) |
+### 4.1 Registered Public Code Graph Tools
 
-### **6.2 Security & Sandboxing**
+13 tools:
 
-The Python REPL is executed in a **gVisor** or **E2B** sandbox to prevent arbitrary code execution on the host machine while allowing the agent to run tests and verify its own fixes.
+- `find_callers`
+- `find_callees`
+- `get_dependencies`
+- `get_dependents`
+- `get_subclasses`
+- `get_superclasses`
+- `find_code_path`
+- `get_related`
+- `search_code`
+- `get_code_source`
+- `repo_stats`
+- `list_indexed_files`
+- `rlm_analyze`
 
-## **7\. Development Roadmap**
+### 4.2 Startup and Incremental Updates
 
-### **Sprint 1: The Oxidized Core**
+- Session creation starts background indexing for CWD.
+- Repo handle remains `None` until index is ready.
+- File watcher batches create/modify/remove and applies incremental updates:
+  - remove stale BM25 docs
+  - update graph nodes/edges for changed files
+  - reinsert BM25 docs
 
-* Initialize Rust crate with pyo3 and tree-sitter.  
-* Implement ParallelWalker using ignore and rayon.  
-* Build basic Call Graph for Python.
+### 4.3 Failure Behavior
 
-### **Sprint 2: The RLM REPL**
+- If graph is not ready, tools return a retry message.
+- If `rlm_analyze` Python invocation fails, error explains package/install expectation.
 
-* Create the Python HappyRepo wrapper.  
-* Implement the Async Orchestration loop.  
-* Basic "File-Search and Summarize" RLM task.
+## 5. Module C: Python RLM Orchestration
 
-### **Sprint 3: Full Agentic Loop**
+### 5.1 Orchestrator Responsibilities
 
-* Integrate Delta-Diff (patch) generation.  
-* Implement "Test-Driven Refactoring" where the agent runs the local test suite via the Rust core.  
-* Release CLI: happy-faster-code \--path ./my-project.
+- Load config (`.happy/agent.toml` + env overrides)
+- Create `HappyRepo(path)`
+- Build namespace with:
+  - `repo`
+  - `read_file`
+  - `list_files`
+  - `delegate` (worker call)
+  - `rlm_query` alias (backward compatibility)
+- Run `RLM(...).completion(...)`
 
-**Document Status:** FINAL / FOR IMPLEMENTATION
+### 5.2 Worker Delegation
 
-**Target Architecture:** x86\_64 / arm64 (Darwin/Linux)
+- Worker delegation currently occurs through repeated `delegate(prompt)` calls.
+- Workers are configured by `worker_model` (or fallback to primary model).
+- This is model/provider-configurable via `litellm`, not hardcoded to single vendors.
+
+## 6. Retrieval and Search Design
+
+- Primary search in tool surface: BM25 over indexed element text.
+- Vector search exists in Python bindings as optional brute-force cosine index.
+- No HNSW ANN backend is currently used in this repository.
+
+## 7. Security and Sandboxing
+
+- `rlm_analyze` currently runs as local `python3` subprocess.
+- gVisor/E2B sandbox integration is not currently part of this path.
+- Broader command sandboxing remains governed by Codex runtime policies.
+
+## 8. Testing and Validation
+
+Current validated paths include:
+
+- `happy-core` unit tests for parsing/indexing/graph/query behavior.
+- Python tests for RLM helpers/orchestrator wiring.
+- Python `HappyRepo` integration tests now use an in-test synthetic fixture repo (no external clone dependency).
+
+## 9. Known Gaps / Next Steps
+
+- Add direct `core`-level tests for `code_graph` tool handler behavior.
+- Add benchmark harnesses for reproducible latency/memory metrics.
+- Continue tightening docs and comments when tool surface changes.
+
+## 10. Document Metadata
+
+- Status: Current implementation reference
+- Target architecture: x86_64 / arm64 (Darwin/Linux)

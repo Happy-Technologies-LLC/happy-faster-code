@@ -54,7 +54,10 @@ def run(
 
     # Add delegate function for recursive sub-queries
     worker_model = config.get("worker_model") or litellm_model
-    namespace["delegate"] = build_delegate(repo, path, worker_model)
+    delegate_fn = build_delegate(repo, path, worker_model)
+    namespace["delegate"] = delegate_fn
+    # Backward-compatible alias used in existing prompts/docs.
+    namespace["rlm_query"] = delegate_fn
 
     # Create and run the RLM agent
     agent = RLM(
