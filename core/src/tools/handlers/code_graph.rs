@@ -1,10 +1,18 @@
 use async_trait::async_trait;
 use codex_protocol::models::FunctionCallOutputBody;
 use serde::Deserialize;
+use serde::Serialize;
+use serde_json::Value;
 use serde_json::json;
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use tokio::io::AsyncBufReadExt;
+use tokio::io::AsyncWriteExt;
+use tokio::io::BufReader;
+use tokio::net::TcpListener;
+use tokio::net::TcpStream;
 use tokio::sync::RwLock;
+use uuid::Uuid;
 
 use crate::function_tool::FunctionCallError;
 use crate::tools::context::ToolInvocation;
@@ -24,19 +32,71 @@ type ParamsFn = fn() -> JsonSchema;
 
 /// Tool names, descriptions, and parameter schema factories for registration in spec.rs.
 pub static CODE_GRAPH_TOOL_NAMES: &[(&str, &str, ParamsFn)] = &[
-    ("find_callers", "Find all functions/methods that call a given symbol in the indexed codebase.", params_symbol as ParamsFn),
-    ("find_callees", "Find all functions/methods called by a given symbol in the indexed codebase.", params_symbol),
-    ("get_dependencies", "Get all files imported by a given file path in the indexed codebase.", params_file_path),
-    ("get_dependents", "Get all files that import a given file path in the indexed codebase.", params_file_path),
-    ("get_subclasses", "Find all classes that inherit from a given class in the indexed codebase.", params_symbol),
-    ("get_superclasses", "Find all parent classes of a given class in the indexed codebase.", params_symbol),
-    ("find_code_path", "Find the shortest path between two symbols in the code graph.", params_source_target),
-    ("get_related", "Find all elements within N hops of a symbol in the code graph.", params_related),
-    ("search_code", "BM25 keyword search across all indexed code elements.", params_search),
-    ("get_code_source", "Get the source code of a specific indexed element by its ID or name.", params_symbol),
-    ("repo_stats", "Get statistics about the indexed codebase (node/edge/file counts).", params_empty),
-    ("list_indexed_files", "List all files that have been indexed in the code graph.", params_empty),
-    ("rlm_analyze", "Run a deep recursive analysis query against the indexed codebase using the RLM orchestrator. Use for complex multi-step questions requiring call chain tracing, dependency analysis, or architectural pattern understanding.", params_rlm_analyze),
+    (
+        "find_callers",
+        "Find all functions/methods that call a given symbol in the indexed codebase.",
+        params_symbol as ParamsFn,
+    ),
+    (
+        "find_callees",
+        "Find all functions/methods called by a given symbol in the indexed codebase.",
+        params_symbol,
+    ),
+    (
+        "get_dependencies",
+        "Get all files imported by a given file path in the indexed codebase.",
+        params_file_path,
+    ),
+    (
+        "get_dependents",
+        "Get all files that import a given file path in the indexed codebase.",
+        params_file_path,
+    ),
+    (
+        "get_subclasses",
+        "Find all classes that inherit from a given class in the indexed codebase.",
+        params_symbol,
+    ),
+    (
+        "get_superclasses",
+        "Find all parent classes of a given class in the indexed codebase.",
+        params_symbol,
+    ),
+    (
+        "find_code_path",
+        "Find the shortest path between two symbols in the code graph.",
+        params_source_target,
+    ),
+    (
+        "get_related",
+        "Find all elements within N hops of a symbol in the code graph.",
+        params_related,
+    ),
+    (
+        "search_code",
+        "BM25 keyword search across all indexed code elements.",
+        params_search,
+    ),
+    (
+        "get_code_source",
+        "Get the source code of a specific indexed element by its ID or name.",
+        params_symbol,
+    ),
+    (
+        "repo_stats",
+        "Get statistics about the indexed codebase (node/edge/file counts).",
+        params_empty,
+    ),
+    (
+        "list_indexed_files",
+        "List all files that have been indexed in the code graph.",
+        params_empty,
+    ),
+    (
+        "rlm_analyze",
+        "Run a deep recursive analysis query against the indexed codebase using the RLM orchestrator. Use for complex multi-step questions requiring call chain tracing, dependency analysis, or architectural pattern understanding.",
+        params_rlm_analyze,
+    ),
 ];
 
 fn params_symbol() -> JsonSchema {
@@ -44,7 +104,9 @@ fn params_symbol() -> JsonSchema {
         properties: BTreeMap::from([(
             "symbol".to_string(),
             JsonSchema::String {
-                description: Some("The symbol name to query (function, class, method, etc).".to_string()),
+                description: Some(
+                    "The symbol name to query (function, class, method, etc).".to_string(),
+                ),
             },
         )]),
         required: Some(vec!["symbol".to_string()]),
@@ -68,8 +130,18 @@ fn params_file_path() -> JsonSchema {
 fn params_source_target() -> JsonSchema {
     JsonSchema::Object {
         properties: BTreeMap::from([
-            ("source".to_string(), JsonSchema::String { description: Some("The source symbol name.".to_string()) }),
-            ("target".to_string(), JsonSchema::String { description: Some("The target symbol name.".to_string()) }),
+            (
+                "source".to_string(),
+                JsonSchema::String {
+                    description: Some("The source symbol name.".to_string()),
+                },
+            ),
+            (
+                "target".to_string(),
+                JsonSchema::String {
+                    description: Some("The target symbol name.".to_string()),
+                },
+            ),
         ]),
         required: Some(vec!["source".to_string(), "target".to_string()]),
         additional_properties: Some(false.into()),
@@ -79,8 +151,20 @@ fn params_source_target() -> JsonSchema {
 fn params_related() -> JsonSchema {
     JsonSchema::Object {
         properties: BTreeMap::from([
-            ("symbol".to_string(), JsonSchema::String { description: Some("The symbol name to find related elements for.".to_string()) }),
-            ("max_hops".to_string(), JsonSchema::Number { description: Some("Maximum number of hops in the graph (default: 2).".to_string()) }),
+            (
+                "symbol".to_string(),
+                JsonSchema::String {
+                    description: Some("The symbol name to find related elements for.".to_string()),
+                },
+            ),
+            (
+                "max_hops".to_string(),
+                JsonSchema::Number {
+                    description: Some(
+                        "Maximum number of hops in the graph (default: 2).".to_string(),
+                    ),
+                },
+            ),
         ]),
         required: Some(vec!["symbol".to_string()]),
         additional_properties: Some(false.into()),
@@ -90,8 +174,20 @@ fn params_related() -> JsonSchema {
 fn params_search() -> JsonSchema {
     JsonSchema::Object {
         properties: BTreeMap::from([
-            ("query".to_string(), JsonSchema::String { description: Some("The search query string.".to_string()) }),
-            ("limit".to_string(), JsonSchema::Number { description: Some("Maximum number of results to return (default: 10).".to_string()) }),
+            (
+                "query".to_string(),
+                JsonSchema::String {
+                    description: Some("The search query string.".to_string()),
+                },
+            ),
+            (
+                "limit".to_string(),
+                JsonSchema::Number {
+                    description: Some(
+                        "Maximum number of results to return (default: 10).".to_string(),
+                    ),
+                },
+            ),
         ]),
         required: Some(vec!["query".to_string()]),
         additional_properties: Some(false.into()),
@@ -109,8 +205,22 @@ fn params_empty() -> JsonSchema {
 fn params_rlm_analyze() -> JsonSchema {
     JsonSchema::Object {
         properties: BTreeMap::from([
-            ("query".to_string(), JsonSchema::String { description: Some("The analysis query to run against the codebase.".to_string()) }),
-            ("max_depth".to_string(), JsonSchema::Number { description: Some("Maximum recursion depth for sub-queries (default: 3).".to_string()) }),
+            (
+                "query".to_string(),
+                JsonSchema::String {
+                    description: Some(
+                        "The analysis query to run against the codebase.".to_string(),
+                    ),
+                },
+            ),
+            (
+                "max_depth".to_string(),
+                JsonSchema::Number {
+                    description: Some(
+                        "Maximum recursion depth for sub-queries (default: 3).".to_string(),
+                    ),
+                },
+            ),
         ]),
         required: Some(vec!["query".to_string()]),
         additional_properties: Some(false.into()),
@@ -125,7 +235,6 @@ pub struct RepoHandle {
 
 /// Lazy-init shared state: starts as None, populated after indexing.
 pub type SharedRepoHandle = Arc<RwLock<Option<RepoHandle>>>;
-
 
 // ── Argument structs ───────────────────────────────────────────
 
@@ -178,6 +287,41 @@ fn default_rlm_max_depth() -> usize {
     3
 }
 
+#[derive(Deserialize)]
+struct GraphRpcRequest {
+    token: String,
+    method: String,
+    #[serde(default)]
+    params: Value,
+}
+
+#[derive(Serialize)]
+struct GraphRpcResponse {
+    ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    result: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+}
+
+impl GraphRpcResponse {
+    fn ok(result: Value) -> Self {
+        Self {
+            ok: true,
+            result: Some(result),
+            error: None,
+        }
+    }
+
+    fn error(message: impl Into<String>) -> Self {
+        Self {
+            ok: false,
+            result: None,
+            error: Some(message.into()),
+        }
+    }
+}
+
 // ── Handler dispatch ───────────────────────────────────────────
 
 /// Dispatcher that routes tool_name to the right happy-core query.
@@ -197,7 +341,8 @@ impl CodeGraphDispatcher {
         tool_name: &str,
         arguments: &str,
     ) -> Result<String, FunctionCallError> {
-        // rlm_analyze doesn't need the repo lock — it spawns a Python subprocess
+        // rlm_analyze is handled separately because it invokes the Python
+        // orchestrator and passes a serialized snapshot of the current graph.
         if tool_name == "rlm_analyze" {
             return self.dispatch_rlm_analyze(arguments).await;
         }
@@ -324,8 +469,61 @@ impl CodeGraphDispatcher {
             FunctionCallError::Fatal(format!("failed to determine working directory: {err}"))
         })?;
         let cwd_str = cwd.to_string_lossy().to_string();
+        let snapshot_dir = tempfile::Builder::new()
+            .prefix("happycode-rlm-")
+            .tempdir()
+            .map_err(|err| {
+                FunctionCallError::Fatal(format!(
+                    "failed to create temporary snapshot directory: {err}"
+                ))
+            })?;
+        let elements_path = snapshot_dir.path().join("elements.bin");
+        {
+            let guard = self.repo.read().await;
+            let repo = guard.as_ref().ok_or_else(|| {
+                FunctionCallError::RespondToModel(
+                    "No repository has been indexed yet. The code graph tools require an indexed \
+                     codebase. Wait for auto-indexing to complete and retry."
+                        .to_string(),
+                )
+            })?;
+            let elements = repo.graph.all_elements();
+            happy_core::store::save_elements(&elements, &elements_path).map_err(|err| {
+                FunctionCallError::Fatal(format!(
+                    "failed to snapshot indexed elements for rlm_analyze: {err}"
+                ))
+            })?;
+        }
+        let elements_path_str = elements_path.to_string_lossy().to_string();
 
-        let output = tokio::process::Command::new("python3")
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.map_err(|err| {
+            FunctionCallError::Fatal(format!(
+                "failed to start graph RPC listener for rlm_analyze: {err}"
+            ))
+        })?;
+        let endpoint = listener.local_addr().map_err(|err| {
+            FunctionCallError::Fatal(format!("failed to read graph RPC listener address: {err}"))
+        })?;
+        let endpoint_str = endpoint.to_string();
+        let rpc_token = Uuid::new_v4().to_string();
+        let server_repo = self.repo.clone();
+        let server_token = rpc_token.clone();
+        let server_task = tokio::spawn(async move {
+            match listener.accept().await {
+                Ok((socket, _addr)) => {
+                    if let Err(err) =
+                        handle_graph_rpc_client(socket, server_repo, server_token).await
+                    {
+                        tracing::warn!(error = %err, "rlm_analyze graph RPC session failed");
+                    }
+                }
+                Err(err) => {
+                    tracing::warn!(error = %err, "rlm_analyze graph RPC accept failed");
+                }
+            }
+        });
+
+        let output_result = tokio::process::Command::new("python3")
             .args([
                 "-m",
                 "happy_faster_code.orchestrator",
@@ -335,19 +533,29 @@ impl CodeGraphDispatcher {
                 &args.query,
                 "--max-depth",
                 &args.max_depth.to_string(),
+                "--graph-rpc-endpoint",
+                &endpoint_str,
+                "--graph-rpc-token",
+                &rpc_token,
+                "--elements-file",
+                &elements_path_str,
                 "--json",
                 "--quiet",
             ])
             .current_dir(&cwd)
             .output()
-            .await
-            .map_err(|err| {
-                FunctionCallError::RespondToModel(format!(
-                    "Failed to invoke RLM orchestrator: {err}. \
-                     Ensure happycode Python package is installed: \
-                     pip install -e . (from the repo root)"
-                ))
-            })?;
+            .await;
+
+        server_task.abort();
+        let _ = server_task.await;
+
+        let output = output_result.map_err(|err| {
+            FunctionCallError::RespondToModel(format!(
+                "Failed to invoke RLM orchestrator: {err}. \
+                 Ensure happycode Python package is installed: \
+                 pip install -e . (from the repo root)"
+            ))
+        })?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -359,6 +567,196 @@ impl CodeGraphDispatcher {
 
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     }
+}
+
+fn required_string(params: &Value, key: &str) -> Result<String, String> {
+    params
+        .get(key)
+        .and_then(Value::as_str)
+        .map(ToOwned::to_owned)
+        .ok_or_else(|| format!("missing or invalid '{key}' parameter"))
+}
+
+fn optional_usize(params: &Value, key: &str, default: usize) -> usize {
+    params
+        .get(key)
+        .and_then(Value::as_u64)
+        .map(|v| v as usize)
+        .unwrap_or(default)
+}
+
+fn dispatch_graph_rpc_method(
+    repo: &RepoHandle,
+    method: &str,
+    params: &Value,
+) -> Result<Value, String> {
+    match method {
+        "find_callers" => {
+            let symbol = required_string(params, "symbol")?;
+            Ok(json!(
+                repo.graph
+                    .find_callers(&symbol)
+                    .into_iter()
+                    .map(|n| n.id.clone())
+                    .collect::<Vec<_>>()
+            ))
+        }
+        "find_callees" => {
+            let symbol = required_string(params, "symbol")?;
+            Ok(json!(
+                repo.graph
+                    .find_callees(&symbol)
+                    .into_iter()
+                    .map(|n| n.id.clone())
+                    .collect::<Vec<_>>()
+            ))
+        }
+        "get_dependencies" => {
+            let file_path = required_string(params, "file_path")?;
+            Ok(json!(
+                repo.graph
+                    .get_dependencies(&file_path)
+                    .into_iter()
+                    .map(|n| n.id.clone())
+                    .collect::<Vec<_>>()
+            ))
+        }
+        "get_dependents" => {
+            let file_path = required_string(params, "file_path")?;
+            Ok(json!(
+                repo.graph
+                    .get_dependents(&file_path)
+                    .into_iter()
+                    .map(|n| n.id.clone())
+                    .collect::<Vec<_>>()
+            ))
+        }
+        "get_subclasses" => {
+            let class_name = required_string(params, "class_name")?;
+            Ok(json!(
+                repo.graph
+                    .get_subclasses(&class_name)
+                    .into_iter()
+                    .map(|n| n.id.clone())
+                    .collect::<Vec<_>>()
+            ))
+        }
+        "get_superclasses" => {
+            let class_name = required_string(params, "class_name")?;
+            Ok(json!(
+                repo.graph
+                    .get_superclasses(&class_name)
+                    .into_iter()
+                    .map(|n| n.id.clone())
+                    .collect::<Vec<_>>()
+            ))
+        }
+        "find_path" => {
+            let source = required_string(params, "source")?;
+            let target = required_string(params, "target")?;
+            Ok(json!(repo.graph.find_path(&source, &target, None)))
+        }
+        "get_related" => {
+            let element = required_string(params, "element")?;
+            let max_hops = optional_usize(params, "max_hops", 2);
+            Ok(json!(
+                repo.graph
+                    .get_related(&element, max_hops)
+                    .into_iter()
+                    .map(|n| n.id.clone())
+                    .collect::<Vec<_>>()
+            ))
+        }
+        "search" => {
+            let query = required_string(params, "query")?;
+            let k = optional_usize(params, "k", 10);
+            Ok(json!(repo.bm25.search(&query, k)))
+        }
+        "get_source" => {
+            let element_id = required_string(params, "element_id")?;
+            Ok(json!(repo.graph.get_source(&element_id)))
+        }
+        "file_tree" => {
+            let mut files = repo.graph.file_paths();
+            files.sort();
+            Ok(json!(files))
+        }
+        "stats" => {
+            let stats = repo.graph.stats();
+            Ok(json!({
+                "nodes": stats.node_count,
+                "edges": stats.edge_count,
+                "files": stats.file_count,
+                "elements": stats.element_count,
+                "bm25_docs": repo.bm25.len(),
+                "has_vectors": false,
+            }))
+        }
+        "resolve_symbol" => {
+            let symbol = required_string(params, "symbol")?;
+            Ok(json!(repo.graph.resolve_symbol(&symbol)))
+        }
+        "resolve_module" => {
+            let module_name = required_string(params, "module_name")?;
+            Ok(json!(repo.graph.resolve_module(&module_name)))
+        }
+        _ => Err(format!("unknown graph RPC method: {method}")),
+    }
+}
+
+async fn handle_graph_rpc_client(
+    socket: TcpStream,
+    repo_handle: SharedRepoHandle,
+    expected_token: String,
+) -> Result<(), String> {
+    let (reader_half, mut writer_half) = socket.into_split();
+    let mut reader = BufReader::new(reader_half);
+    let mut line = String::new();
+
+    loop {
+        line.clear();
+        let bytes = reader
+            .read_line(&mut line)
+            .await
+            .map_err(|err| format!("failed to read graph RPC request: {err}"))?;
+        if bytes == 0 {
+            break;
+        }
+
+        let response = match serde_json::from_str::<GraphRpcRequest>(line.trim_end()) {
+            Ok(request) => {
+                if request.token != expected_token {
+                    GraphRpcResponse::error("unauthorized graph RPC token")
+                } else {
+                    let guard = repo_handle.read().await;
+                    if let Some(repo) = guard.as_ref() {
+                        match dispatch_graph_rpc_method(repo, &request.method, &request.params) {
+                            Ok(result) => GraphRpcResponse::ok(result),
+                            Err(err) => GraphRpcResponse::error(err),
+                        }
+                    } else {
+                        GraphRpcResponse::error(
+                            "No repository has been indexed yet. Wait for auto-indexing to complete and retry.",
+                        )
+                    }
+                }
+            }
+            Err(err) => GraphRpcResponse::error(format!("invalid graph RPC request: {err}")),
+        };
+
+        let encoded = serde_json::to_string(&response)
+            .map_err(|err| format!("failed to encode graph RPC response: {err}"))?;
+        writer_half
+            .write_all(encoded.as_bytes())
+            .await
+            .map_err(|err| format!("failed to write graph RPC response: {err}"))?;
+        writer_half
+            .write_all(b"\n")
+            .await
+            .map_err(|err| format!("failed to write graph RPC newline: {err}"))?;
+    }
+
+    Ok(())
 }
 
 fn format_nodes(nodes: &[&happy_core::graph::types::GraphNode]) -> String {
@@ -441,7 +839,10 @@ pub fn start_code_graph_indexing(repo_handle: SharedRepoHandle, cwd: std::path::
                 tracing::warn!("code graph indexing found no elements");
                 return None;
             }
-            tracing::info!(count = elements.len(), "indexed code elements, building graph");
+            tracing::info!(
+                count = elements.len(),
+                "indexed code elements, building graph"
+            );
 
             let mut graph = RepositoryGraph::new();
             graph.build_from_elements(&elements, &path_str);

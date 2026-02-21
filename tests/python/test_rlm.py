@@ -1,6 +1,8 @@
 """Tests for the RLM orchestration layer (config, tools, orchestrator)."""
 
+import sys
 import tempfile
+import types
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -203,3 +205,233 @@ class TestOrchestratorImport:
         from happy_faster_code import load_config
 
         assert callable(load_config)
+
+
+class TestOrchestratorRun:
+    def test_run_prefers_graph_rpc_when_configured(self, monkeypatch):
+        """run() should use GraphRpcRepo when endpoint+token are provided."""
+        from happy_faster_code import orchestrator
+
+        repo_instance = MagicMock()
+        graph_rpc_cls = MagicMock(return_value=repo_instance)
+        happy_repo_cls = MagicMock()
+
+        class FakeResult:
+            response = "ok"
+
+        class FakeRLM:
+            def __init__(self, backend, backend_kwargs):
+                self.backend = backend
+                self.backend_kwargs = backend_kwargs
+
+            def completion(self, **kwargs):
+                return FakeResult()
+
+        monkeypatch.setitem(sys.modules, "rlm", types.SimpleNamespace(RLM=FakeRLM))
+        monkeypatch.setattr("happy_faster_code.HappyRepo", happy_repo_cls)
+        monkeypatch.setattr("happy_faster_code.graph_rpc.GraphRpcRepo", graph_rpc_cls)
+        monkeypatch.setattr(
+            "happy_faster_code.config.load_config",
+            lambda _path: {
+                "litellm_model": "anthropic/claude-sonnet-4-6",
+                "api_key": "",
+                "provider": "anthropic",
+                "worker_model": None,
+            },
+        )
+        monkeypatch.setattr(
+            "happy_faster_code.rlm_tools.build_rlm_namespace",
+            lambda repo, _path: {"repo": repo},
+        )
+        monkeypatch.setattr(
+            "happy_faster_code.rlm_tools.build_system_prompt",
+            lambda _repo: "system",
+        )
+        monkeypatch.setattr(
+            "happy_faster_code.worker.build_delegate",
+            lambda _repo, _path, _model: (lambda prompt: prompt),
+        )
+
+        result = orchestrator.run(
+            path="/repo",
+            query="analyze",
+            graph_rpc_endpoint="127.0.0.1:1234",
+            graph_rpc_token="token",
+            elements_file="/tmp/elements.bin",
+            verbose=False,
+        )
+
+        assert result == "ok"
+        graph_rpc_cls.assert_called_once_with(
+            "127.0.0.1:1234",
+            "token",
+            path="/repo",
+        )
+        happy_repo_cls.from_elements_file.assert_not_called()
+        happy_repo_cls.assert_not_called()
+
+    def test_run_falls_back_to_snapshot_when_rpc_unavailable(self, monkeypatch):
+        """run() should fallback to elements snapshot if graph RPC init fails."""
+        from happy_faster_code import orchestrator
+
+        repo_instance = MagicMock()
+        graph_rpc_cls = MagicMock(side_effect=RuntimeError("rpc down"))
+        happy_repo_cls = MagicMock()
+        happy_repo_cls.from_elements_file.return_value = repo_instance
+
+        class FakeResult:
+            response = "ok"
+
+        class FakeRLM:
+            def __init__(self, backend, backend_kwargs):
+                self.backend = backend
+                self.backend_kwargs = backend_kwargs
+
+            def completion(self, **kwargs):
+                return FakeResult()
+
+        monkeypatch.setitem(sys.modules, "rlm", types.SimpleNamespace(RLM=FakeRLM))
+        monkeypatch.setattr("happy_faster_code.HappyRepo", happy_repo_cls)
+        monkeypatch.setattr("happy_faster_code.graph_rpc.GraphRpcRepo", graph_rpc_cls)
+        monkeypatch.setattr(
+            "happy_faster_code.config.load_config",
+            lambda _path: {
+                "litellm_model": "anthropic/claude-sonnet-4-6",
+                "api_key": "",
+                "provider": "anthropic",
+                "worker_model": None,
+            },
+        )
+        monkeypatch.setattr(
+            "happy_faster_code.rlm_tools.build_rlm_namespace",
+            lambda repo, _path: {"repo": repo},
+        )
+        monkeypatch.setattr(
+            "happy_faster_code.rlm_tools.build_system_prompt",
+            lambda _repo: "system",
+        )
+        monkeypatch.setattr(
+            "happy_faster_code.worker.build_delegate",
+            lambda _repo, _path, _model: (lambda prompt: prompt),
+        )
+
+        result = orchestrator.run(
+            path="/repo",
+            query="analyze",
+            graph_rpc_endpoint="127.0.0.1:1234",
+            graph_rpc_token="token",
+            elements_file="/tmp/elements.bin",
+            verbose=False,
+        )
+
+        assert result == "ok"
+        graph_rpc_cls.assert_called_once_with(
+            "127.0.0.1:1234",
+            "token",
+            path="/repo",
+        )
+        happy_repo_cls.from_elements_file.assert_called_once_with(
+            "/tmp/elements.bin",
+            "/repo",
+        )
+
+    def test_run_uses_elements_snapshot_when_provided(self, monkeypatch):
+        """run() should build HappyRepo from snapshot when elements_file is passed."""
+        from happy_faster_code import orchestrator
+
+        repo_instance = MagicMock()
+        repo_cls = MagicMock()
+        repo_cls.from_elements_file.return_value = repo_instance
+
+        class FakeResult:
+            response = "ok"
+
+        class FakeRLM:
+            def __init__(self, backend, backend_kwargs):
+                self.backend = backend
+                self.backend_kwargs = backend_kwargs
+
+            def completion(self, **kwargs):
+                return FakeResult()
+
+        monkeypatch.setitem(sys.modules, "rlm", types.SimpleNamespace(RLM=FakeRLM))
+        monkeypatch.setattr("happy_faster_code.HappyRepo", repo_cls)
+        monkeypatch.setattr(
+            "happy_faster_code.config.load_config",
+            lambda _path: {
+                "litellm_model": "anthropic/claude-sonnet-4-6",
+                "api_key": "",
+                "provider": "anthropic",
+                "worker_model": None,
+            },
+        )
+        monkeypatch.setattr(
+            "happy_faster_code.rlm_tools.build_rlm_namespace",
+            lambda repo, _path: {"repo": repo},
+        )
+        monkeypatch.setattr(
+            "happy_faster_code.rlm_tools.build_system_prompt",
+            lambda _repo: "system",
+        )
+        monkeypatch.setattr(
+            "happy_faster_code.worker.build_delegate",
+            lambda _repo, _path, _model: (lambda prompt: prompt),
+        )
+
+        result = orchestrator.run(
+            path="/repo",
+            query="analyze",
+            elements_file="/tmp/elements.bin",
+            verbose=False,
+        )
+
+        assert result == "ok"
+        repo_cls.from_elements_file.assert_called_once_with("/tmp/elements.bin", "/repo")
+        repo_cls.assert_not_called()
+
+    def test_run_uses_path_indexing_without_snapshot(self, monkeypatch):
+        """run() should build HappyRepo from path when elements_file is missing."""
+        from happy_faster_code import orchestrator
+
+        repo_instance = MagicMock()
+        repo_cls = MagicMock(return_value=repo_instance)
+
+        class FakeResult:
+            response = "ok"
+
+        class FakeRLM:
+            def __init__(self, backend, backend_kwargs):
+                self.backend = backend
+                self.backend_kwargs = backend_kwargs
+
+            def completion(self, **kwargs):
+                return FakeResult()
+
+        monkeypatch.setitem(sys.modules, "rlm", types.SimpleNamespace(RLM=FakeRLM))
+        monkeypatch.setattr("happy_faster_code.HappyRepo", repo_cls)
+        monkeypatch.setattr(
+            "happy_faster_code.config.load_config",
+            lambda _path: {
+                "litellm_model": "anthropic/claude-sonnet-4-6",
+                "api_key": "",
+                "provider": "anthropic",
+                "worker_model": None,
+            },
+        )
+        monkeypatch.setattr(
+            "happy_faster_code.rlm_tools.build_rlm_namespace",
+            lambda repo, _path: {"repo": repo},
+        )
+        monkeypatch.setattr(
+            "happy_faster_code.rlm_tools.build_system_prompt",
+            lambda _repo: "system",
+        )
+        monkeypatch.setattr(
+            "happy_faster_code.worker.build_delegate",
+            lambda _repo, _path, _model: (lambda prompt: prompt),
+        )
+
+        result = orchestrator.run(path="/repo", query="analyze", verbose=False)
+
+        assert result == "ok"
+        repo_cls.assert_called_once_with("/repo")

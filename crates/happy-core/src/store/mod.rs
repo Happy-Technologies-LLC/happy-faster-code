@@ -21,10 +21,10 @@ pub fn save_bm25(index: &BM25Index, path: &Path) -> io::Result<()> {
         kind: "bm25".to_string(),
     };
 
-    let header_bytes = bincode::serialize(&header)
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-    let data_bytes = bincode::serialize(index)
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+    let header_bytes =
+        bincode::serialize(&header).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+    let data_bytes =
+        bincode::serialize(index).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
     let mut output = Vec::new();
     output.extend_from_slice(&(header_bytes.len() as u32).to_le_bytes());
@@ -49,7 +49,10 @@ pub fn load_bm25(path: &Path) -> io::Result<BM25Index> {
 
     let header_len = u32::from_le_bytes([data[0], data[1], data[2], data[3]]) as usize;
     if data.len() < 4 + header_len {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "truncated header"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "truncated header",
+        ));
     }
 
     let header: StoreHeader = bincode::deserialize(&data[4..4 + header_len])
@@ -69,19 +72,16 @@ pub fn load_bm25(path: &Path) -> io::Result<BM25Index> {
 }
 
 /// Save code elements to disk.
-pub fn save_elements(
-    elements: &[crate::indexer::CodeElement],
-    path: &Path,
-) -> io::Result<()> {
+pub fn save_elements(elements: &[crate::indexer::CodeElement], path: &Path) -> io::Result<()> {
     let header = StoreHeader {
         version: FORMAT_VERSION,
         kind: "elements".to_string(),
     };
 
-    let header_bytes = bincode::serialize(&header)
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-    let data_bytes = bincode::serialize(elements)
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+    let header_bytes =
+        bincode::serialize(&header).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+    let data_bytes =
+        bincode::serialize(elements).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
     let mut output = Vec::new();
     output.extend_from_slice(&(header_bytes.len() as u32).to_le_bytes());
@@ -105,15 +105,17 @@ pub fn load_elements(path: &Path) -> io::Result<Vec<crate::indexer::CodeElement>
 
     let header_len = u32::from_le_bytes([data[0], data[1], data[2], data[3]]) as usize;
     if data.len() < 4 + header_len {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "truncated header"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "truncated header",
+        ));
     }
 
     let _header: StoreHeader = bincode::deserialize(&data[4..4 + header_len])
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-    let elements: Vec<crate::indexer::CodeElement> =
-        bincode::deserialize(&data[4 + header_len..])
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    let elements: Vec<crate::indexer::CodeElement> = bincode::deserialize(&data[4 + header_len..])
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
     Ok(elements)
 }

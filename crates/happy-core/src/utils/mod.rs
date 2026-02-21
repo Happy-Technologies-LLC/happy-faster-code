@@ -2,9 +2,7 @@ use std::path::Path;
 
 /// Normalize a file path for consistent lookups.
 pub fn normalize_path(path: &str) -> String {
-    path.replace('\\', "/")
-        .trim_end_matches('/')
-        .to_string()
+    path.replace('\\', "/").trim_end_matches('/').to_string()
 }
 
 /// Convert a file path to a dotted module path (Python-style).

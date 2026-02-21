@@ -1629,9 +1629,9 @@ fn register_code_graph_tools(
     builder: &mut ToolRegistryBuilder,
     shared_repo: crate::tools::handlers::SharedRepoHandle,
 ) {
-    use crate::tools::handlers::code_graph::CODE_GRAPH_TOOL_NAMES;
     use crate::tools::handlers::CodeGraphDispatcher;
     use crate::tools::handlers::CodeGraphToolHandler;
+    use crate::tools::handlers::code_graph::CODE_GRAPH_TOOL_NAMES;
     use std::sync::Arc;
 
     let dispatcher = Arc::new(CodeGraphDispatcher::new(shared_repo));
@@ -2079,7 +2079,14 @@ mod tests {
             features: &features,
             web_search_mode: Some(WebSearchMode::Cached),
         });
-        let (tools, _) = build_specs(&tools_config, Some(HashMap::new()), None, &[], dummy_repo_handle()).build();
+        let (tools, _) = build_specs(
+            &tools_config,
+            Some(HashMap::new()),
+            None,
+            &[],
+            dummy_repo_handle(),
+        )
+        .build();
 
         assert_contains_tool_names(
             &tools,
@@ -2278,7 +2285,14 @@ mod tests {
             features: &features,
             web_search_mode: Some(WebSearchMode::Live),
         });
-        let (tools, _) = build_specs(&tools_config, Some(HashMap::new()), None, &[], dummy_repo_handle()).build();
+        let (tools, _) = build_specs(
+            &tools_config,
+            Some(HashMap::new()),
+            None,
+            &[],
+            dummy_repo_handle(),
+        )
+        .build();
 
         // Only check the shell variant and a couple of core tools.
         let mut subset = vec!["exec_command", "write_stdin", "update_plan"];
@@ -2477,7 +2491,14 @@ mod tests {
             ),
         ]);
 
-        let (tools, _) = build_specs(&tools_config, Some(tools_map), None, &[], dummy_repo_handle()).build();
+        let (tools, _) = build_specs(
+            &tools_config,
+            Some(tools_map),
+            None,
+            &[],
+            dummy_repo_handle(),
+        )
+        .build();
 
         // Only assert that the MCP tools themselves are sorted by fully-qualified name.
         let mcp_names: Vec<_> = tools

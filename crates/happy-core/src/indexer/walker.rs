@@ -1,16 +1,18 @@
-use std::path::{Path, PathBuf};
 use ignore::WalkBuilder;
 use rayon::prelude::*;
+use std::path::{Path, PathBuf};
 
+use super::element::{CodeElement, ElementType};
 use crate::parser::Parser;
 use crate::parser::languages::SupportedLanguage;
-use super::element::{CodeElement, ElementType};
 use std::collections::HashMap;
 use std::sync::Mutex;
 
 /// Walk a repository and extract code elements from all supported files.
 pub fn walk_and_index(repo_path: &str) -> Vec<CodeElement> {
-    let repo_root = Path::new(repo_path).canonicalize().unwrap_or_else(|_| PathBuf::from(repo_path));
+    let repo_root = Path::new(repo_path)
+        .canonicalize()
+        .unwrap_or_else(|_| PathBuf::from(repo_path));
     let repo_root_str = repo_root.to_string_lossy().to_string();
 
     // Collect all file paths first
@@ -22,7 +24,9 @@ pub fn walk_and_index(repo_path: &str) -> Vec<CodeElement> {
         .build()
         .filter_map(|entry| entry.ok())
         .filter(|entry| entry.file_type().is_some_and(|ft| ft.is_file()))
-        .filter(|entry| SupportedLanguage::from_extension(&entry.path().to_string_lossy()).is_some())
+        .filter(|entry| {
+            SupportedLanguage::from_extension(&entry.path().to_string_lossy()).is_some()
+        })
         .map(|entry| entry.into_path())
         .collect();
 
@@ -34,7 +38,8 @@ pub fn walk_and_index(repo_path: &str) -> Vec<CodeElement> {
         if let Ok(code) = std::fs::read_to_string(path) {
             let mut parser = Parser::new();
             if let Some((lang, tree)) = parser.parse_file(&path_str, &code) {
-                let relative = path.strip_prefix(&repo_root)
+                let relative = path
+                    .strip_prefix(&repo_root)
                     .map(|p| p.to_string_lossy().to_string())
                     .unwrap_or_else(|_| path_str.clone());
 
@@ -69,17 +74,13 @@ pub fn index_single_file(file_path: &str, repo_root: &str) -> Option<Vec<CodeEle
     let mut parser = Parser::new();
     let tree = parser.parse(&code, lang)?;
 
-    let relative = path.strip_prefix(root)
+    let relative = path
+        .strip_prefix(root)
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|_| file_path.to_string());
 
     Some(extract_elements_from_tree(
-        &tree,
-        &code,
-        file_path,
-        &relative,
-        lang,
-        repo_root,
+        &tree, &code, file_path, &relative, lang, repo_root,
     ))
 }
 
@@ -136,7 +137,8 @@ pub fn extract_elements_from_tree(
 
 /// Check if a tree-sitter node kind represents a function/method definition.
 fn is_function_kind(kind: &str) -> bool {
-    matches!(kind,
+    matches!(
+        kind,
         // Python
         "function_definition" |
         // JS/TS
@@ -154,7 +156,8 @@ fn is_function_kind(kind: &str) -> bool {
 
 /// Check if a tree-sitter node kind represents a class/struct/enum/interface definition.
 fn is_class_like_kind(kind: &str) -> bool {
-    matches!(kind,
+    matches!(
+        kind,
         // Python/JS/TS/Java
         "class_definition" | "class_declaration" |
         // Rust
@@ -181,13 +184,23 @@ fn classify_class_kind(kind: &str) -> ElementType {
 fn extract_name(node: &tree_sitter::Node, code_bytes: &[u8]) -> Option<String> {
     // Most languages use a "name" field
     if let Some(name_node) = node.child_by_field_name("name") {
-        return Some(name_node.utf8_text(code_bytes).unwrap_or_default().to_string());
+        return Some(
+            name_node
+                .utf8_text(code_bytes)
+                .unwrap_or_default()
+                .to_string(),
+        );
     }
 
     // Rust impl_item uses "type" field for the implemented type
     if node.kind() == "impl_item" {
         if let Some(type_node) = node.child_by_field_name("type") {
-            return Some(type_node.utf8_text(code_bytes).unwrap_or_default().to_string());
+            return Some(
+                type_node
+                    .utf8_text(code_bytes)
+                    .unwrap_or_default()
+                    .to_string(),
+            );
         }
     }
 
@@ -211,20 +224,25 @@ fn extract_declarator_name(node: &tree_sitter::Node, code_bytes: &[u8]) -> Optio
             if let Some(inner) = node.child_by_field_name("declarator") {
                 extract_declarator_name(&inner, code_bytes)
             } else {
-                node.child(0).and_then(|c| extract_declarator_name(&c, code_bytes))
+                node.child(0)
+                    .and_then(|c| extract_declarator_name(&c, code_bytes))
             }
         }
         "qualified_identifier" | "scoped_identifier" => {
             if let Some(name_node) = node.child_by_field_name("name") {
-                Some(name_node.utf8_text(code_bytes).unwrap_or_default().to_string())
+                Some(
+                    name_node
+                        .utf8_text(code_bytes)
+                        .unwrap_or_default()
+                        .to_string(),
+                )
             } else {
                 Some(node.utf8_text(code_bytes).unwrap_or_default().to_string())
             }
         }
-        _ => {
-            node.child_by_field_name("declarator")
-                .and_then(|c| extract_declarator_name(&c, code_bytes))
-        }
+        _ => node
+            .child_by_field_name("declarator")
+            .and_then(|c| extract_declarator_name(&c, code_bytes)),
     }
 }
 
@@ -459,7 +477,12 @@ def standalone():
         let mut parser = Parser::new();
         let tree = parser.parse(code, SupportedLanguage::Python).unwrap();
         let elements = extract_elements_from_tree(
-            &tree, code, "test.py", "test.py", SupportedLanguage::Python, "/repo",
+            &tree,
+            code,
+            "test.py",
+            "test.py",
+            SupportedLanguage::Python,
+            "/repo",
         );
 
         let types: Vec<ElementType> = elements.iter().map(|e| e.element_type).collect();
@@ -479,7 +502,12 @@ def foo():
         let mut parser = Parser::new();
         let tree = parser.parse(code, SupportedLanguage::Python).unwrap();
         let elements = extract_elements_from_tree(
-            &tree, code, "test.py", "test.py", SupportedLanguage::Python, "/repo",
+            &tree,
+            code,
+            "test.py",
+            "test.py",
+            SupportedLanguage::Python,
+            "/repo",
         );
 
         let func = elements.iter().find(|e| e.name == "foo").unwrap();
@@ -513,14 +541,35 @@ enum Color {
         let mut parser = Parser::new();
         let tree = parser.parse(code, SupportedLanguage::Rust).unwrap();
         let elements = extract_elements_from_tree(
-            &tree, code, "test.rs", "test.rs", SupportedLanguage::Rust, "/repo",
+            &tree,
+            code,
+            "test.rs",
+            "test.rs",
+            SupportedLanguage::Rust,
+            "/repo",
         );
 
         let names: Vec<&str> = elements.iter().map(|e| e.name.as_str()).collect();
-        assert!(names.contains(&"greet"), "Should find fn greet: {:?}", names);
-        assert!(names.contains(&"Config"), "Should find struct Config: {:?}", names);
-        assert!(names.contains(&"Color"), "Should find enum Color: {:?}", names);
-        assert!(names.contains(&"new"), "Should find method new: {:?}", names);
+        assert!(
+            names.contains(&"greet"),
+            "Should find fn greet: {:?}",
+            names
+        );
+        assert!(
+            names.contains(&"Config"),
+            "Should find struct Config: {:?}",
+            names
+        );
+        assert!(
+            names.contains(&"Color"),
+            "Should find enum Color: {:?}",
+            names
+        );
+        assert!(
+            names.contains(&"new"),
+            "Should find method new: {:?}",
+            names
+        );
 
         let greet = elements.iter().find(|e| e.name == "greet").unwrap();
         assert_eq!(greet.element_type, ElementType::Function);
@@ -536,7 +585,13 @@ enum Color {
 
         // Check doc extraction
         assert!(greet.docstring.is_some(), "greet should have a doc comment");
-        assert!(greet.docstring.as_deref().unwrap().contains("Documentation for greet"));
+        assert!(
+            greet
+                .docstring
+                .as_deref()
+                .unwrap()
+                .contains("Documentation for greet")
+        );
     }
 
     #[test]
@@ -559,12 +614,25 @@ class DataService {
         let mut parser = Parser::new();
         let tree = parser.parse(code, SupportedLanguage::JavaScript).unwrap();
         let elements = extract_elements_from_tree(
-            &tree, code, "test.js", "test.js", SupportedLanguage::JavaScript, "/repo",
+            &tree,
+            code,
+            "test.js",
+            "test.js",
+            SupportedLanguage::JavaScript,
+            "/repo",
         );
 
         let names: Vec<&str> = elements.iter().map(|e| e.name.as_str()).collect();
-        assert!(names.contains(&"processData"), "Should find processData: {:?}", names);
-        assert!(names.contains(&"DataService"), "Should find DataService: {:?}", names);
+        assert!(
+            names.contains(&"processData"),
+            "Should find processData: {:?}",
+            names
+        );
+        assert!(
+            names.contains(&"DataService"),
+            "Should find DataService: {:?}",
+            names
+        );
     }
 
     #[test]
@@ -594,14 +662,31 @@ class UserManager {
         let mut parser = Parser::new();
         let tree = parser.parse(code, SupportedLanguage::TypeScript).unwrap();
         let elements = extract_elements_from_tree(
-            &tree, code, "test.ts", "test.ts", SupportedLanguage::TypeScript, "/repo",
+            &tree,
+            code,
+            "test.ts",
+            "test.ts",
+            SupportedLanguage::TypeScript,
+            "/repo",
         );
 
         let names: Vec<&str> = elements.iter().map(|e| e.name.as_str()).collect();
-        assert!(names.contains(&"UserService"), "Should find interface: {:?}", names);
+        assert!(
+            names.contains(&"UserService"),
+            "Should find interface: {:?}",
+            names
+        );
         assert!(names.contains(&"Status"), "Should find enum: {:?}", names);
-        assert!(names.contains(&"createUser"), "Should find function: {:?}", names);
-        assert!(names.contains(&"UserManager"), "Should find class: {:?}", names);
+        assert!(
+            names.contains(&"createUser"),
+            "Should find function: {:?}",
+            names
+        );
+        assert!(
+            names.contains(&"UserManager"),
+            "Should find class: {:?}",
+            names
+        );
 
         let iface = elements.iter().find(|e| e.name == "UserService").unwrap();
         assert_eq!(iface.element_type, ElementType::Interface);
@@ -622,11 +707,20 @@ func Hello(name string) string {
         let mut parser = Parser::new();
         let tree = parser.parse(code, SupportedLanguage::Go).unwrap();
         let elements = extract_elements_from_tree(
-            &tree, code, "test.go", "test.go", SupportedLanguage::Go, "/repo",
+            &tree,
+            code,
+            "test.go",
+            "test.go",
+            SupportedLanguage::Go,
+            "/repo",
         );
 
         let names: Vec<&str> = elements.iter().map(|e| e.name.as_str()).collect();
-        assert!(names.contains(&"Hello"), "Should find func Hello: {:?}", names);
+        assert!(
+            names.contains(&"Hello"),
+            "Should find func Hello: {:?}",
+            names
+        );
     }
 
     #[test]
@@ -645,13 +739,30 @@ public class UserService {
         let mut parser = Parser::new();
         let tree = parser.parse(code, SupportedLanguage::Java).unwrap();
         let elements = extract_elements_from_tree(
-            &tree, code, "Test.java", "Test.java", SupportedLanguage::Java, "/repo",
+            &tree,
+            code,
+            "Test.java",
+            "Test.java",
+            SupportedLanguage::Java,
+            "/repo",
         );
 
         let names: Vec<&str> = elements.iter().map(|e| e.name.as_str()).collect();
-        assert!(names.contains(&"UserService"), "Should find class: {:?}", names);
-        assert!(names.contains(&"processUser"), "Should find method: {:?}", names);
-        assert!(names.contains(&"calculate"), "Should find method: {:?}", names);
+        assert!(
+            names.contains(&"UserService"),
+            "Should find class: {:?}",
+            names
+        );
+        assert!(
+            names.contains(&"processUser"),
+            "Should find method: {:?}",
+            names
+        );
+        assert!(
+            names.contains(&"calculate"),
+            "Should find method: {:?}",
+            names
+        );
     }
 
     #[test]
@@ -670,10 +781,18 @@ public class UserService {
         let elements = index_single_file(&file_str, &repo_root).unwrap();
 
         // Should have a File element + a Function element
-        assert!(elements.len() >= 2, "Expected at least 2 elements, got {}", elements.len());
+        assert!(
+            elements.len() >= 2,
+            "Expected at least 2 elements, got {}",
+            elements.len()
+        );
 
         let names: Vec<&str> = elements.iter().map(|e| e.name.as_str()).collect();
-        assert!(names.contains(&"hello"), "Should find function hello: {:?}", names);
+        assert!(
+            names.contains(&"hello"),
+            "Should find function hello: {:?}",
+            names
+        );
 
         let types: Vec<ElementType> = elements.iter().map(|e| e.element_type).collect();
         assert!(types.contains(&ElementType::File));

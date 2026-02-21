@@ -8,6 +8,11 @@
 
 happycode extends [OpenAI's Codex CLI](https://github.com/openai/codex) with a Rust-native structural code graph engine. Before the LLM sees a single token, it builds a **full structural graph** of your entire codebase — every function call, every import chain, every class hierarchy, every dependency edge — then exposes that graph to the LLM as **13 additional tools** on top of Codex's existing read/write/execute capabilities.
 
+This project is primarily an **integration package** that stitches together three proven pieces into one workflow:
+- **Codex CLI runtime** (terminal agent, tools, sandbox, approvals, TUI)
+- **FastCode-inspired structural analysis** reimplemented in Rust as `happy-core`
+- **Recursive orchestration** via `rlm_analyze` (`rlms` + `litellm`)
+
 The result: the LLM doesn't guess at relationships. It **knows** them.
 
 ## Why This Exists
@@ -16,7 +21,7 @@ AI coding tools are bottlenecked by context, not intelligence. When you ask "wha
 
 happycode adds a structural code graph layer to the Codex agent, giving the LLM precise answers to structural queries with sub-millisecond latency — no grepping, no guessing.
 
-## What Makes It Different
+## What You Get in One Package
 
 | | happycode | Typical AI CLI |
 |---|---|---|
@@ -28,6 +33,21 @@ happycode adds a structural code graph layer to the Codex agent, giving the LLM 
 | **Import resolution** | Module-path-aware, multi-language | N/A |
 | **Indexing speed** | Parallel Rust (tree-sitter + rayon), seconds for 100k LoC | N/A |
 | **Query latency** | Sub-millisecond graph lookups | Re-reads files each time |
+
+## Compared to FastCode
+
+happycode is not claiming a brand-new graph paradigm. The graph/indexing approach is explicitly inspired by FastCode; the main value is tighter runtime integration and packaging.
+
+| | happycode | FastCode |
+|---|---|---|
+| **Graph/indexing model** | FastCode-inspired, Rust implementation (`happy-core`) | Original Python implementation |
+| **Agent runtime** | In-process Codex fork integration | Python API/CLI workflow |
+| **Code graph tools in agent** | 13 graph tools registered in Codex tool router | Exposed through FastCode interfaces |
+| **Recursive analysis** | `rlm_analyze` wired into agent tool list | Can be composed manually |
+| **Out-of-box packaging** | Single install path for Codex + graph + RLM | Powerful primitives, integration left to user |
+| **Incremental in-session updates** | Background watcher updates graph during session | Depends on user wiring/usage mode |
+
+If you only need graph APIs and can own custom agent glue, FastCode can be enough. If you want a pre-integrated terminal coding agent where Codex + graph tools + RLM are already stitched together, happycode is meant to reduce that setup work.
 
 ## Agent Tools
 
@@ -61,7 +81,10 @@ All standard Codex tools are available: `shell`, `apply_patch`, `read_file`, `li
 # Install Python package (includes RLM dependencies automatically)
 pip install .
 
-# Build
+# Build just the CLI binary (recommended)
+cargo build --release --bin happycode
+
+# Or build the whole workspace
 cargo build --release
 
 # Run (Codex CLI with code graph)
@@ -74,6 +97,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 The code graph indexes your working directory automatically in the background on session start. No separate indexing step required.
+`rlm_analyze` uses a local RPC bridge to query the live in-memory graph directly (with snapshot/path fallback), so it does not perform a second filesystem walk in normal usage.
 `rlms` and `litellm` are installed as package dependencies, so no separate manual install is required for `rlm_analyze`.
 
 ## Supported Languages
@@ -170,6 +194,9 @@ Call targets are resolved with a 4-tier priority system:
 
 ```bash
 # Prerequisites: Rust 1.93.0+ (matches `rust-toolchain.toml`)
+cargo build --release --bin happycode
+
+# Optional: build the full workspace
 cargo build --release
 
 # Run tests

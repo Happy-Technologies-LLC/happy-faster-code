@@ -17,9 +17,9 @@ pub fn extract_imports(tree: &Tree, code: &str, language: SupportedLanguage) -> 
     let mut imports = Vec::new();
     match language {
         SupportedLanguage::Python => collect_python_imports(&root, code, &mut imports),
-        SupportedLanguage::JavaScript
-        | SupportedLanguage::TypeScript
-        | SupportedLanguage::Tsx => collect_js_ts_imports(&root, code, &mut imports),
+        SupportedLanguage::JavaScript | SupportedLanguage::TypeScript | SupportedLanguage::Tsx => {
+            collect_js_ts_imports(&root, code, &mut imports)
+        }
         SupportedLanguage::Rust => collect_rust_imports(&root, code, &mut imports),
         SupportedLanguage::Go => collect_go_imports(&root, code, &mut imports),
         SupportedLanguage::Java => collect_java_imports(&root, code, &mut imports),
@@ -51,8 +51,10 @@ fn collect_python_imports(node: &Node, code: &str, imports: &mut Vec<ImportInfo>
                     });
                 } else if child.kind() == "aliased_import" {
                     if let Some(name_node) = child.child_by_field_name("name") {
-                        let module =
-                            name_node.utf8_text(code_bytes).unwrap_or_default().to_string();
+                        let module = name_node
+                            .utf8_text(code_bytes)
+                            .unwrap_or_default()
+                            .to_string();
                         imports.push(ImportInfo {
                             module: module.clone(),
                             names: vec![module],
@@ -71,7 +73,10 @@ fn collect_python_imports(node: &Node, code: &str, imports: &mut Vec<ImportInfo>
             let mut level = 0u32;
 
             if let Some(module_node) = node.child_by_field_name("module_name") {
-                module = module_node.utf8_text(code_bytes).unwrap_or_default().to_string();
+                module = module_node
+                    .utf8_text(code_bytes)
+                    .unwrap_or_default()
+                    .to_string();
             }
 
             let mut cursor = node.walk();
@@ -94,8 +99,7 @@ fn collect_python_imports(node: &Node, code: &str, imports: &mut Vec<ImportInfo>
                                     "import_prefix" => {
                                         let prefix =
                                             rchild.utf8_text(code_bytes).unwrap_or_default();
-                                        level =
-                                            prefix.chars().filter(|&c| c == '.').count() as u32;
+                                        level = prefix.chars().filter(|&c| c == '.').count() as u32;
                                     }
                                     "dotted_name" => {
                                         module = rchild
@@ -287,7 +291,10 @@ fn collect_rust_imports(node: &Node, code: &str, imports: &mut Vec<ImportInfo>) 
         // mod foo; (external module declaration)
         "mod_item" => {
             if let Some(name_node) = node.child_by_field_name("name") {
-                let name = name_node.utf8_text(code_bytes).unwrap_or_default().to_string();
+                let name = name_node
+                    .utf8_text(code_bytes)
+                    .unwrap_or_default()
+                    .to_string();
                 // Only count `mod foo;` (no body), not `mod foo { ... }`
                 let has_body = node.child_by_field_name("body").is_some();
                 if !has_body {
@@ -330,8 +337,7 @@ fn extract_rust_use_path(node: &Node, code_bytes: &[u8], names: &mut Vec<String>
                     let mut cursor = list.walk();
                     for child in list.children(&mut cursor) {
                         if child.kind() == "identifier" || child.kind() == "scoped_identifier" {
-                            let text =
-                                child.utf8_text(code_bytes).unwrap_or_default().to_string();
+                            let text = child.utf8_text(code_bytes).unwrap_or_default().to_string();
                             names.push(text);
                         } else if child.kind() == "use_as_clause" {
                             if let Some(orig) = child.child(0) {
@@ -660,7 +666,11 @@ import "fmt"
         let mut parser = Parser::new();
         let tree = parser.parse(code, SupportedLanguage::Go).unwrap();
         let imports = extract_imports(&tree, code, SupportedLanguage::Go);
-        assert!(imports.iter().any(|i| i.module == "fmt"), "imports: {:?}", imports);
+        assert!(
+            imports.iter().any(|i| i.module == "fmt"),
+            "imports: {:?}",
+            imports
+        );
     }
 
     #[test]
@@ -694,7 +704,11 @@ public class Main {}
         let tree = parser.parse(code, SupportedLanguage::Java).unwrap();
         let imports = extract_imports(&tree, code, SupportedLanguage::Java);
         let modules: Vec<&str> = imports.iter().map(|i| i.module.as_str()).collect();
-        assert!(modules.contains(&"java.util.HashMap"), "modules: {:?}", modules);
+        assert!(
+            modules.contains(&"java.util.HashMap"),
+            "modules: {:?}",
+            modules
+        );
         assert!(modules.contains(&"java.util.*"), "modules: {:?}", modules);
     }
 

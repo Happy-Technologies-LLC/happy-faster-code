@@ -26,11 +26,11 @@ impl GlobalIndex {
     pub fn build(&self, elements: &[crate::indexer::CodeElement], repo_root: &str) {
         for elem in elements {
             if elem.element_type == crate::indexer::ElementType::File {
-                if let Some(module_path) = crate::utils::file_path_to_module_path(
-                    &elem.file_path,
-                    repo_root,
-                ) {
-                    self.file_map.insert(elem.file_path.clone(), module_path.clone());
+                if let Some(module_path) =
+                    crate::utils::file_path_to_module_path(&elem.file_path, repo_root)
+                {
+                    self.file_map
+                        .insert(elem.file_path.clone(), module_path.clone());
                     self.module_map.insert(module_path, elem.file_path.clone());
                 }
             } else {
@@ -82,7 +82,11 @@ impl GlobalIndex {
     }
 
     pub fn stats(&self) -> (usize, usize, usize) {
-        (self.file_map.len(), self.module_map.len(), self.export_map.len())
+        (
+            self.file_map.len(),
+            self.module_map.len(),
+            self.export_map.len(),
+        )
     }
 }
 
@@ -136,9 +140,15 @@ mod tests {
         let index = GlobalIndex::new();
         index.build(&elements, "/repo");
 
-        assert_eq!(index.resolve_module("src.auth"), Some("/repo/src/auth.py".into()));
+        assert_eq!(
+            index.resolve_module("src.auth"),
+            Some("/repo/src/auth.py".into())
+        );
         assert_eq!(index.resolve_symbol("login").len(), 1);
-        assert_eq!(index.file_to_module("/repo/src/auth.py"), Some("src.auth".into()));
+        assert_eq!(
+            index.file_to_module("/repo/src/auth.py"),
+            Some("src.auth".into())
+        );
     }
 
     #[test]

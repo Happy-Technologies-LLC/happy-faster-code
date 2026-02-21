@@ -1,5 +1,5 @@
-use tree_sitter::{Node, Tree};
 use super::languages::SupportedLanguage;
+use tree_sitter::{Node, Tree};
 
 /// Information about a function call extracted from source code.
 #[derive(Debug, Clone)]
@@ -32,15 +32,73 @@ struct ScopeInfo {
 
 /// Python built-in function names to filter out.
 const PYTHON_BUILTINS: &[&str] = &[
-    "abs", "all", "any", "bin", "bool", "breakpoint", "bytearray", "bytes",
-    "callable", "chr", "classmethod", "compile", "complex", "delattr", "dict",
-    "dir", "divmod", "enumerate", "eval", "exec", "filter", "float", "format",
-    "frozenset", "getattr", "globals", "hasattr", "hash", "help", "hex", "id",
-    "input", "int", "isinstance", "issubclass", "iter", "len", "list", "locals",
-    "map", "max", "memoryview", "min", "next", "object", "oct", "open", "ord",
-    "pow", "print", "property", "range", "repr", "reversed", "round", "set",
-    "setattr", "slice", "sorted", "staticmethod", "str", "sum", "super",
-    "tuple", "type", "vars", "zip",
+    "abs",
+    "all",
+    "any",
+    "bin",
+    "bool",
+    "breakpoint",
+    "bytearray",
+    "bytes",
+    "callable",
+    "chr",
+    "classmethod",
+    "compile",
+    "complex",
+    "delattr",
+    "dict",
+    "dir",
+    "divmod",
+    "enumerate",
+    "eval",
+    "exec",
+    "filter",
+    "float",
+    "format",
+    "frozenset",
+    "getattr",
+    "globals",
+    "hasattr",
+    "hash",
+    "help",
+    "hex",
+    "id",
+    "input",
+    "int",
+    "isinstance",
+    "issubclass",
+    "iter",
+    "len",
+    "list",
+    "locals",
+    "map",
+    "max",
+    "memoryview",
+    "min",
+    "next",
+    "object",
+    "oct",
+    "open",
+    "ord",
+    "pow",
+    "print",
+    "property",
+    "range",
+    "repr",
+    "reversed",
+    "round",
+    "set",
+    "setattr",
+    "slice",
+    "sorted",
+    "staticmethod",
+    "str",
+    "sum",
+    "super",
+    "tuple",
+    "type",
+    "vars",
+    "zip",
 ];
 
 /// Extract function calls from a tree-sitter AST with scope tracking.
@@ -281,10 +339,7 @@ fn extract_go_call(
 }
 
 /// Java: `method_invocation` → direct `object` + `name` fields (no `function` wrapper)
-fn extract_java_call(
-    node: &Node,
-    code_bytes: &[u8],
-) -> Option<(String, Option<String>, CallType)> {
+fn extract_java_call(node: &Node, code_bytes: &[u8]) -> Option<(String, Option<String>, CallType)> {
     let name_node = node.child_by_field_name("name")?;
     let name = name_node.utf8_text(code_bytes).ok()?.to_string();
 
@@ -349,8 +404,7 @@ fn find_scope_for_position(byte_pos: usize, scopes: &[ScopeInfo]) -> Option<Stri
 fn should_filter_call(call: &CallInfo, language: SupportedLanguage) -> bool {
     match language {
         SupportedLanguage::Python => {
-            call.call_type == CallType::Simple
-                && PYTHON_BUILTINS.contains(&call.call_name.as_str())
+            call.call_type == CallType::Simple && PYTHON_BUILTINS.contains(&call.call_name.as_str())
         }
         _ => false,
     }
@@ -450,9 +504,21 @@ function main() {
         let calls = extract_calls(&tree, code, SupportedLanguage::JavaScript);
 
         let call_names: Vec<&str> = calls.iter().map(|c| c.call_name.as_str()).collect();
-        assert!(call_names.contains(&"process"), "Missing 'process' in {:?}", call_names);
-        assert!(call_names.contains(&"log"), "Missing 'log' in {:?}", call_names);
-        assert!(call_names.contains(&"map"), "Missing 'map' in {:?}", call_names);
+        assert!(
+            call_names.contains(&"process"),
+            "Missing 'process' in {:?}",
+            call_names
+        );
+        assert!(
+            call_names.contains(&"log"),
+            "Missing 'log' in {:?}",
+            call_names
+        );
+        assert!(
+            call_names.contains(&"map"),
+            "Missing 'map' in {:?}",
+            call_names
+        );
 
         // Verify attribute calls have correct base
         let log_call = calls.iter().find(|c| c.call_name == "log").unwrap();
@@ -476,8 +542,16 @@ async function fetchData() {
         let calls = extract_calls(&tree, code, SupportedLanguage::TypeScript);
 
         let call_names: Vec<&str> = calls.iter().map(|c| c.call_name.as_str()).collect();
-        assert!(call_names.contains(&"fetch"), "Missing 'fetch' in {:?}", call_names);
-        assert!(call_names.contains(&"json"), "Missing 'json' in {:?}", call_names);
+        assert!(
+            call_names.contains(&"fetch"),
+            "Missing 'fetch' in {:?}",
+            call_names
+        );
+        assert!(
+            call_names.contains(&"json"),
+            "Missing 'json' in {:?}",
+            call_names
+        );
 
         let json_call = calls.iter().find(|c| c.call_name == "json").unwrap();
         assert_eq!(json_call.base_object.as_deref(), Some("response"));
@@ -499,9 +573,21 @@ fn main() {
         let calls = extract_calls(&tree, code, SupportedLanguage::Rust);
 
         let call_names: Vec<&str> = calls.iter().map(|c| c.call_name.as_str()).collect();
-        assert!(call_names.contains(&"process"), "Missing 'process' in {:?}", call_names);
-        assert!(call_names.contains(&"new"), "Missing 'new' (Vec::new) in {:?}", call_names);
-        assert!(call_names.contains(&"push"), "Missing 'push' in {:?}", call_names);
+        assert!(
+            call_names.contains(&"process"),
+            "Missing 'process' in {:?}",
+            call_names
+        );
+        assert!(
+            call_names.contains(&"new"),
+            "Missing 'new' (Vec::new) in {:?}",
+            call_names
+        );
+        assert!(
+            call_names.contains(&"push"),
+            "Missing 'push' in {:?}",
+            call_names
+        );
 
         // Verify Vec::new() is extracted as attribute call
         let new_call = calls.iter().find(|c| c.call_name == "new").unwrap();
@@ -527,8 +613,16 @@ func main() {
         let calls = extract_calls(&tree, code, SupportedLanguage::Go);
 
         let call_names: Vec<&str> = calls.iter().map(|c| c.call_name.as_str()).collect();
-        assert!(call_names.contains(&"process"), "Missing 'process' in {:?}", call_names);
-        assert!(call_names.contains(&"Println"), "Missing 'Println' in {:?}", call_names);
+        assert!(
+            call_names.contains(&"process"),
+            "Missing 'process' in {:?}",
+            call_names
+        );
+        assert!(
+            call_names.contains(&"Println"),
+            "Missing 'Println' in {:?}",
+            call_names
+        );
 
         let println_call = calls.iter().find(|c| c.call_name == "Println").unwrap();
         assert_eq!(println_call.base_object.as_deref(), Some("fmt"));
@@ -552,9 +646,21 @@ public class Main {
         let calls = extract_calls(&tree, code, SupportedLanguage::Java);
 
         let call_names: Vec<&str> = calls.iter().map(|c| c.call_name.as_str()).collect();
-        assert!(call_names.contains(&"process"), "Missing 'process' in {:?}", call_names);
-        assert!(call_names.contains(&"println"), "Missing 'println' in {:?}", call_names);
-        assert!(call_names.contains(&"add"), "Missing 'add' in {:?}", call_names);
+        assert!(
+            call_names.contains(&"process"),
+            "Missing 'process' in {:?}",
+            call_names
+        );
+        assert!(
+            call_names.contains(&"println"),
+            "Missing 'println' in {:?}",
+            call_names
+        );
+        assert!(
+            call_names.contains(&"add"),
+            "Missing 'add' in {:?}",
+            call_names
+        );
 
         let add_call = calls.iter().find(|c| c.call_name == "add").unwrap();
         assert_eq!(add_call.base_object.as_deref(), Some("list"));
@@ -579,8 +685,16 @@ void run() {
         let calls = extract_calls(&tree, code, SupportedLanguage::Cpp);
 
         let call_names: Vec<&str> = calls.iter().map(|c| c.call_name.as_str()).collect();
-        assert!(call_names.contains(&"process"), "Missing 'process' in {:?}", call_names);
-        assert!(call_names.contains(&"push_back"), "Missing 'push_back' in {:?}", call_names);
+        assert!(
+            call_names.contains(&"process"),
+            "Missing 'process' in {:?}",
+            call_names
+        );
+        assert!(
+            call_names.contains(&"push_back"),
+            "Missing 'push_back' in {:?}",
+            call_names
+        );
 
         let push_call = calls.iter().find(|c| c.call_name == "push_back").unwrap();
         assert_eq!(push_call.base_object.as_deref(), Some("vec"));

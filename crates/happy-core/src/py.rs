@@ -1,17 +1,21 @@
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
+#[cfg(feature = "python")]
+use std::path::Path;
 
 #[cfg(feature = "python")]
 use pyo3::types::PyDict;
 
 #[cfg(feature = "python")]
-use crate::graph::RepositoryGraph;
-#[cfg(feature = "python")]
 use crate::global_index::GlobalIndex;
 #[cfg(feature = "python")]
-use crate::vector::{BM25Index, VectorIndex};
+use crate::graph::RepositoryGraph;
 #[cfg(feature = "python")]
 use crate::indexer;
+#[cfg(feature = "python")]
+use crate::store;
+#[cfg(feature = "python")]
+use crate::vector::{BM25Index, VectorIndex};
 
 #[cfg(feature = "python")]
 #[pyclass]
@@ -24,72 +28,100 @@ pub struct HappyRepo {
 }
 
 #[cfg(feature = "python")]
-#[pymethods]
 impl HappyRepo {
-    #[new]
-    fn new(path: &str) -> PyResult<Self> {
-        let elements = indexer::walk_and_index(path);
-
+    fn build_from_elements(path: &str, elements: &[crate::indexer::CodeElement]) -> Self {
         let mut graph = RepositoryGraph::new();
-        graph.build_from_elements(&elements, path);
+        graph.build_from_elements(elements, path);
 
         // GlobalIndex is now built inside build_from_elements, but we still
         // need a separate one for the PyO3 wrapper's direct resolve methods.
         let global_index = GlobalIndex::new();
-        global_index.build(&elements, path);
+        global_index.build(elements, path);
 
         let mut bm25 = BM25Index::new();
-        for elem in &elements {
-            let text = format!("{} {} {}", elem.name, elem.code, elem.docstring.as_deref().unwrap_or(""));
+        for elem in elements {
+            let text = format!(
+                "{} {} {}",
+                elem.name,
+                elem.code,
+                elem.docstring.as_deref().unwrap_or("")
+            );
             bm25.add_document(&elem.id, &text);
         }
 
-        Ok(Self {
+        Self {
             graph,
             global_index,
             bm25,
             vector: None,
             repo_path: path.to_string(),
-        })
+        }
+    }
+}
+
+#[cfg(feature = "python")]
+#[pymethods]
+impl HappyRepo {
+    #[new]
+    fn new(path: &str) -> PyResult<Self> {
+        let elements = indexer::walk_and_index(path);
+        Ok(Self::build_from_elements(path, &elements))
+    }
+
+    #[staticmethod]
+    fn from_elements_file(elements_file: &str, path: &str) -> PyResult<Self> {
+        let elements = store::load_elements(Path::new(elements_file)).map_err(|err| {
+            pyo3::exceptions::PyRuntimeError::new_err(format!(
+                "failed to load elements snapshot '{}': {err}",
+                elements_file
+            ))
+        })?;
+        Ok(Self::build_from_elements(path, &elements))
     }
 
     fn find_callers(&self, symbol: &str) -> Vec<String> {
-        self.graph.find_callers(symbol)
+        self.graph
+            .find_callers(symbol)
             .into_iter()
             .map(|n| n.id.clone())
             .collect()
     }
 
     fn find_callees(&self, symbol: &str) -> Vec<String> {
-        self.graph.find_callees(symbol)
+        self.graph
+            .find_callees(symbol)
             .into_iter()
             .map(|n| n.id.clone())
             .collect()
     }
 
     fn get_dependencies(&self, file: &str) -> Vec<String> {
-        self.graph.get_dependencies(file)
+        self.graph
+            .get_dependencies(file)
             .into_iter()
             .map(|n| n.id.clone())
             .collect()
     }
 
     fn get_dependents(&self, file: &str) -> Vec<String> {
-        self.graph.get_dependents(file)
+        self.graph
+            .get_dependents(file)
             .into_iter()
             .map(|n| n.id.clone())
             .collect()
     }
 
     fn get_subclasses(&self, class_name: &str) -> Vec<String> {
-        self.graph.get_subclasses(class_name)
+        self.graph
+            .get_subclasses(class_name)
             .into_iter()
             .map(|n| n.id.clone())
             .collect()
     }
 
     fn get_superclasses(&self, class_name: &str) -> Vec<String> {
-        self.graph.get_superclasses(class_name)
+        self.graph
+            .get_superclasses(class_name)
             .into_iter()
             .map(|n| n.id.clone())
             .collect()
@@ -100,7 +132,8 @@ impl HappyRepo {
     }
 
     fn get_related(&self, element: &str, max_hops: usize) -> Vec<String> {
-        self.graph.get_related(element, max_hops)
+        self.graph
+            .get_related(element, max_hops)
             .into_iter()
             .map(|n| n.id.clone())
             .collect()
@@ -144,7 +177,9 @@ impl HappyRepo {
     }
 
     fn file_tree(&self) -> Vec<String> {
-        let mut files: Vec<String> = self.graph.file_to_nodes
+        let mut files: Vec<String> = self
+            .graph
+            .file_to_nodes
             .iter()
             .map(|entry| entry.key().clone())
             .collect();

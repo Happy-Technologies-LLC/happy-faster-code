@@ -1,18 +1,18 @@
-pub mod types;
 pub mod queries;
+pub mod types;
 
 use dashmap::DashMap;
 use petgraph::stable_graph::NodeIndex;
 use smol_str::SmolStr;
 
-use types::{CodeGraph, GraphNode, GraphEdge, NodeKind, EdgeKind};
+use crate::global_index::GlobalIndex;
+use crate::global_index::module_resolver::ModuleResolver;
+use crate::global_index::symbol_resolver::SymbolResolver;
 use crate::indexer::{CodeElement, ElementType};
 use crate::parser::calls::extract_calls;
 use crate::parser::imports::extract_imports;
 use crate::parser::languages::SupportedLanguage;
-use crate::global_index::GlobalIndex;
-use crate::global_index::module_resolver::ModuleResolver;
-use crate::global_index::symbol_resolver::SymbolResolver;
+use types::{CodeGraph, EdgeKind, GraphEdge, GraphNode, NodeKind};
 
 /// The main repository graph holding all code relationships.
 pub struct RepositoryGraph {
@@ -93,13 +93,18 @@ impl RepositoryGraph {
                 continue;
             }
             if let Some(file_nodes) = self.file_to_nodes.get(&elem.file_path) {
-                let file_idx = file_nodes.iter().find(|&&idx| {
-                    self.graph[idx].kind == NodeKind::File
-                });
-                if let (Some(&file_idx), Some(elem_idx)) = (file_idx, self.id_to_node.get(&elem.id)) {
-                    self.graph.add_edge(file_idx, *elem_idx, GraphEdge {
-                        kind: EdgeKind::Defines,
-                    });
+                let file_idx = file_nodes
+                    .iter()
+                    .find(|&&idx| self.graph[idx].kind == NodeKind::File);
+                if let (Some(&file_idx), Some(elem_idx)) = (file_idx, self.id_to_node.get(&elem.id))
+                {
+                    self.graph.add_edge(
+                        file_idx,
+                        *elem_idx,
+                        GraphEdge {
+                            kind: EdgeKind::Defines,
+                        },
+                    );
                 }
             }
         }
@@ -167,7 +172,9 @@ impl RepositoryGraph {
                             self.graph.add_edge(
                                 caller_idx,
                                 callee_idx,
-                                GraphEdge { kind: EdgeKind::Calls },
+                                GraphEdge {
+                                    kind: EdgeKind::Calls,
+                                },
                             );
                         }
                     }
@@ -216,10 +223,9 @@ impl RepositoryGraph {
         if !imported_names.is_empty() {
             let from_import = candidates.iter().find(|&&idx| {
                 let node = &self.graph[idx];
-                imported_names.iter().any(|imp| {
-                    node.file_path.contains(imp)
-                        || node.name.as_str() == imp.as_str()
-                })
+                imported_names
+                    .iter()
+                    .any(|imp| node.file_path.contains(imp) || node.name.as_str() == imp.as_str())
             });
             if let Some(&idx) = from_import {
                 return Some(idx);
@@ -279,21 +285,24 @@ impl RepositoryGraph {
                     .and_then(|file_path| {
                         // Find the File node for this resolved path
                         self.file_to_nodes.get(&file_path).and_then(|nodes| {
-                            nodes.iter()
+                            nodes
+                                .iter()
                                 .find(|&&idx| self.graph[idx].kind == NodeKind::File)
                                 .copied()
                         })
                     });
 
                 // Strategy 2: Fallback to heuristic name/path matching
-                let target_idx = resolved_via_index
-                    .or_else(|| self.resolve_import_target_heuristic(import));
+                let target_idx =
+                    resolved_via_index.or_else(|| self.resolve_import_target_heuristic(import));
 
                 if let Some(target_idx) = target_idx {
                     self.graph.add_edge(
                         file_idx,
                         target_idx,
-                        GraphEdge { kind: EdgeKind::Imports },
+                        GraphEdge {
+                            kind: EdgeKind::Imports,
+                        },
                     );
                 }
 
@@ -316,7 +325,8 @@ impl RepositoryGraph {
 
                     // Fallback to name_to_nodes
                     let target = linked.or_else(|| {
-                        self.name_to_nodes.get(name)
+                        self.name_to_nodes
+                            .get(name)
                             .and_then(|indices| indices.first().copied())
                     });
 
@@ -324,7 +334,9 @@ impl RepositoryGraph {
                         self.graph.add_edge(
                             file_idx,
                             target_idx,
-                            GraphEdge { kind: EdgeKind::Imports },
+                            GraphEdge {
+                                kind: EdgeKind::Imports,
+                            },
                         );
                     }
                 }
@@ -345,7 +357,10 @@ impl RepositoryGraph {
         }
 
         // Try last segment of module path (e.g., "os.path" -> "path")
-        let last_segment = import.module.rsplit('.').next()
+        let last_segment = import
+            .module
+            .rsplit('.')
+            .next()
             .or_else(|| import.module.rsplit('/').next())
             .or_else(|| import.module.rsplit("::").next());
 
@@ -364,9 +379,11 @@ impl RepositoryGraph {
         for entry in self.file_to_nodes.iter() {
             let file_path = entry.key();
             if file_path.contains(&normalized) {
-                if let Some(file_idx) = entry.value().iter().find(|&&idx| {
-                    self.graph[idx].kind == NodeKind::File
-                }) {
+                if let Some(file_idx) = entry
+                    .value()
+                    .iter()
+                    .find(|&&idx| self.graph[idx].kind == NodeKind::File)
+                {
                     return Some(*file_idx);
                 }
             }
@@ -410,7 +427,9 @@ impl RepositoryGraph {
                         self.graph.add_edge(
                             class_idx,
                             base_idx,
-                            GraphEdge { kind: EdgeKind::Inherits },
+                            GraphEdge {
+                                kind: EdgeKind::Inherits,
+                            },
                         );
                     }
                 }
@@ -441,13 +460,36 @@ impl RepositoryGraph {
             .collect()
     }
 
+    /// Resolve a module name to its file path using the global index.
+    pub fn resolve_module(&self, module_name: &str) -> Option<String> {
+        self.global_index.resolve_module(module_name)
+    }
+
+    /// Resolve a symbol name to matching (file_path, element_id) pairs.
+    pub fn resolve_symbol(&self, symbol_name: &str) -> Vec<(String, String)> {
+        self.global_index.resolve_symbol(symbol_name)
+    }
+
+    /// Get a clone of all indexed elements.
+    /// Useful for snapshotting the current in-memory graph state.
+    pub fn all_elements(&self) -> Vec<CodeElement> {
+        let mut elements: Vec<CodeElement> = self
+            .element_arena
+            .iter()
+            .map(|entry| entry.value().clone())
+            .collect();
+        elements.sort_by(|a, b| a.id.cmp(&b.id));
+        elements
+    }
+
     /// Get all element IDs associated with a file path.
     /// Used by the file watcher to remove stale BM25 entries before re-indexing.
     pub fn element_ids_for_file(&self, file_path: &str) -> Vec<String> {
         self.file_to_nodes
             .get(file_path)
             .map(|nodes| {
-                nodes.iter()
+                nodes
+                    .iter()
                     .map(|&idx| self.graph[idx].id.clone())
                     .collect()
             })
@@ -475,12 +517,7 @@ impl RepositoryGraph {
     ///
     /// Removes all old data for `file_path`, then re-adds `new_elements`
     /// and rebuilds edges (defines, imports, calls, inheritance) for them.
-    pub fn update_file(
-        &mut self,
-        file_path: &str,
-        new_elements: &[CodeElement],
-        repo_root: &str,
-    ) {
+    pub fn update_file(&mut self, file_path: &str, new_elements: &[CodeElement], repo_root: &str) {
         // Phase 1: Remove old data
         self.remove_file(file_path);
         self.global_index.remove_file(file_path);
@@ -513,16 +550,17 @@ impl RepositoryGraph {
                 continue;
             }
             if let Some(file_nodes) = self.file_to_nodes.get(&elem.file_path) {
-                let file_idx = file_nodes.iter().find(|&&idx| {
-                    self.graph[idx].kind == NodeKind::File
-                });
-                if let (Some(&file_idx), Some(elem_idx)) =
-                    (file_idx, self.id_to_node.get(&elem.id))
+                let file_idx = file_nodes
+                    .iter()
+                    .find(|&&idx| self.graph[idx].kind == NodeKind::File);
+                if let (Some(&file_idx), Some(elem_idx)) = (file_idx, self.id_to_node.get(&elem.id))
                 {
                     self.graph.add_edge(
                         file_idx,
                         *elem_idx,
-                        GraphEdge { kind: EdgeKind::Defines },
+                        GraphEdge {
+                            kind: EdgeKind::Defines,
+                        },
                     );
                 }
             }
@@ -644,7 +682,8 @@ fn extract_identifier_names(node: &tree_sitter::Node, src: &[u8], names: &mut Ve
         match child.kind() {
             "identifier" | "dotted_name" | "type_identifier" | "scoped_type_identifier" => {
                 let name = child.utf8_text(src).unwrap_or_default().to_string();
-                if !name.is_empty() && name != "public" && name != "private" && name != "protected" {
+                if !name.is_empty() && name != "public" && name != "private" && name != "protected"
+                {
                     names.push(name);
                 }
             }
@@ -674,7 +713,8 @@ fn extract_js_ts_bases(node: &tree_sitter::Node, src: &[u8], bases: &mut Vec<Str
         }
 
         if (found_extends || found_implements)
-            && (child.kind() == "identifier" || child.kind() == "type_identifier"
+            && (child.kind() == "identifier"
+                || child.kind() == "type_identifier"
                 || child.kind() == "member_expression")
         {
             let name = text.to_string();
@@ -727,7 +767,13 @@ mod tests {
     use crate::indexer::element::*;
     use std::collections::HashMap;
 
-    fn make_element(id: &str, name: &str, etype: ElementType, file: &str, code: &str) -> CodeElement {
+    fn make_element(
+        id: &str,
+        name: &str,
+        etype: ElementType,
+        file: &str,
+        code: &str,
+    ) -> CodeElement {
         CodeElement {
             id: id.to_string(),
             element_type: etype,
@@ -748,8 +794,20 @@ mod tests {
     #[test]
     fn test_build_graph_nodes() {
         let elements = vec![
-            make_element("file_a", "a.py", ElementType::File, "a.py", "def foo():\n    pass\n"),
-            make_element("func_foo", "foo", ElementType::Function, "a.py", "def foo():\n    pass\n"),
+            make_element(
+                "file_a",
+                "a.py",
+                ElementType::File,
+                "a.py",
+                "def foo():\n    pass\n",
+            ),
+            make_element(
+                "func_foo",
+                "foo",
+                ElementType::Function,
+                "a.py",
+                "def foo():\n    pass\n",
+            ),
         ];
 
         let mut graph = RepositoryGraph::new();
@@ -763,7 +821,13 @@ mod tests {
     fn test_remove_file() {
         let elements = vec![
             make_element("file_a", "a.py", ElementType::File, "a.py", "x = 1"),
-            make_element("func_foo", "foo", ElementType::Function, "a.py", "def foo(): pass"),
+            make_element(
+                "func_foo",
+                "foo",
+                ElementType::Function,
+                "a.py",
+                "def foo(): pass",
+            ),
         ];
 
         let mut graph = RepositoryGraph::new();
@@ -779,18 +843,48 @@ mod tests {
         // Two files: a.py imports helper from b.py
         // Both files have a function named "helper", but a.py's call should resolve to b.py's
         let elements = vec![
-            make_element("file_a", "a.py", ElementType::File, "a.py",
-                "from b import helper\n\ndef caller():\n    helper()\n"),
-            make_element("func_caller", "caller", ElementType::Function, "a.py",
-                "def caller():\n    helper()\n"),
-            make_element("file_b", "b.py", ElementType::File, "b.py",
-                "def helper():\n    pass\n"),
-            make_element("func_helper_b", "helper", ElementType::Function, "b.py",
-                "def helper():\n    pass\n"),
-            make_element("file_c", "c.py", ElementType::File, "c.py",
-                "def helper():\n    return 42\n"),
-            make_element("func_helper_c", "helper", ElementType::Function, "c.py",
-                "def helper():\n    return 42\n"),
+            make_element(
+                "file_a",
+                "a.py",
+                ElementType::File,
+                "a.py",
+                "from b import helper\n\ndef caller():\n    helper()\n",
+            ),
+            make_element(
+                "func_caller",
+                "caller",
+                ElementType::Function,
+                "a.py",
+                "def caller():\n    helper()\n",
+            ),
+            make_element(
+                "file_b",
+                "b.py",
+                ElementType::File,
+                "b.py",
+                "def helper():\n    pass\n",
+            ),
+            make_element(
+                "func_helper_b",
+                "helper",
+                ElementType::Function,
+                "b.py",
+                "def helper():\n    pass\n",
+            ),
+            make_element(
+                "file_c",
+                "c.py",
+                ElementType::File,
+                "c.py",
+                "def helper():\n    return 42\n",
+            ),
+            make_element(
+                "func_helper_c",
+                "helper",
+                ElementType::Function,
+                "c.py",
+                "def helper():\n    return 42\n",
+            ),
         ];
 
         let mut graph = RepositoryGraph::new();
@@ -804,10 +898,34 @@ mod tests {
     fn test_update_file() {
         // Build initial graph with two files
         let elements = vec![
-            make_element("file_a", "a.py", ElementType::File, "a.py", "def foo():\n    pass\n"),
-            make_element("func_foo", "foo", ElementType::Function, "a.py", "def foo():\n    pass\n"),
-            make_element("file_b", "b.py", ElementType::File, "b.py", "def bar():\n    pass\n"),
-            make_element("func_bar", "bar", ElementType::Function, "b.py", "def bar():\n    pass\n"),
+            make_element(
+                "file_a",
+                "a.py",
+                ElementType::File,
+                "a.py",
+                "def foo():\n    pass\n",
+            ),
+            make_element(
+                "func_foo",
+                "foo",
+                ElementType::Function,
+                "a.py",
+                "def foo():\n    pass\n",
+            ),
+            make_element(
+                "file_b",
+                "b.py",
+                ElementType::File,
+                "b.py",
+                "def bar():\n    pass\n",
+            ),
+            make_element(
+                "func_bar",
+                "bar",
+                ElementType::Function,
+                "b.py",
+                "def bar():\n    pass\n",
+            ),
         ];
 
         let mut graph = RepositoryGraph::new();
@@ -817,8 +935,20 @@ mod tests {
 
         // Update a.py: replace foo with baz
         let new_elements = vec![
-            make_element("file_a_v2", "a.py", ElementType::File, "a.py", "def baz():\n    pass\n"),
-            make_element("func_baz", "baz", ElementType::Function, "a.py", "def baz():\n    pass\n"),
+            make_element(
+                "file_a_v2",
+                "a.py",
+                ElementType::File,
+                "a.py",
+                "def baz():\n    pass\n",
+            ),
+            make_element(
+                "func_baz",
+                "baz",
+                ElementType::Function,
+                "a.py",
+                "def baz():\n    pass\n",
+            ),
         ];
         graph.update_file("a.py", &new_elements, "");
 
@@ -835,9 +965,27 @@ mod tests {
     #[test]
     fn test_element_ids_for_file() {
         let elements = vec![
-            make_element("file_a", "a.py", ElementType::File, "a.py", "def foo():\n    pass\n"),
-            make_element("func_foo", "foo", ElementType::Function, "a.py", "def foo():\n    pass\n"),
-            make_element("file_b", "b.py", ElementType::File, "b.py", "def bar():\n    pass\n"),
+            make_element(
+                "file_a",
+                "a.py",
+                ElementType::File,
+                "a.py",
+                "def foo():\n    pass\n",
+            ),
+            make_element(
+                "func_foo",
+                "foo",
+                ElementType::Function,
+                "a.py",
+                "def foo():\n    pass\n",
+            ),
+            make_element(
+                "file_b",
+                "b.py",
+                ElementType::File,
+                "b.py",
+                "def bar():\n    pass\n",
+            ),
         ];
 
         let mut graph = RepositoryGraph::new();
@@ -853,5 +1001,34 @@ mod tests {
 
         let ids_c = graph.element_ids_for_file("nonexistent.py");
         assert!(ids_c.is_empty());
+    }
+
+    #[test]
+    fn test_all_elements_snapshot() {
+        let elements = vec![
+            make_element(
+                "z_func",
+                "z",
+                ElementType::Function,
+                "a.py",
+                "def z():\n    pass\n",
+            ),
+            make_element(
+                "a_file",
+                "a.py",
+                ElementType::File,
+                "a.py",
+                "def z():\n    pass\n",
+            ),
+        ];
+
+        let mut graph = RepositoryGraph::new();
+        graph.build_from_elements(&elements, "");
+
+        let snapshot = graph.all_elements();
+        assert_eq!(snapshot.len(), 2);
+        // Returned in stable order for deterministic snapshotting.
+        assert_eq!(snapshot[0].id, "a_file");
+        assert_eq!(snapshot[1].id, "z_func");
     }
 }

@@ -1094,9 +1094,15 @@ mod tests {
 
     #[test]
     fn exec_resume_last_accepts_prompt_positional() {
-        let cli =
-            MultitoolCli::try_parse_from(["happycode", "exec", "--json", "resume", "--last", "2+2"])
-                .expect("parse should succeed");
+        let cli = MultitoolCli::try_parse_from([
+            "happycode",
+            "exec",
+            "--json",
+            "resume",
+            "--last",
+            "2+2",
+        ])
+        .expect("parse should succeed");
 
         let Some(Subcommand::Exec(exec)) = cli.subcommand else {
             panic!("expected exec subcommand");

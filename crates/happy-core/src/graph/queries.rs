@@ -1,6 +1,6 @@
+use petgraph::Direction;
 use petgraph::algo::astar;
 use petgraph::stable_graph::NodeIndex;
-use petgraph::Direction;
 
 use super::RepositoryGraph;
 use super::types::{EdgeKind, GraphNode};
@@ -144,7 +144,11 @@ impl RepositoryGraph {
                     |n| n == tgt,
                     |edge| {
                         if let Some(filter) = edge_filter {
-                            if edge.weight().kind == filter { 1 } else { usize::MAX / 2 }
+                            if edge.weight().kind == filter {
+                                1
+                            } else {
+                                usize::MAX / 2
+                            }
                         } else {
                             1
                         }
@@ -253,7 +257,13 @@ mod tests {
             end_line: 5,
         });
 
-        repo.add_edge(a, b, GraphEdge { kind: EdgeKind::Calls });
+        repo.add_edge(
+            a,
+            b,
+            GraphEdge {
+                kind: EdgeKind::Calls,
+            },
+        );
         repo
     }
 

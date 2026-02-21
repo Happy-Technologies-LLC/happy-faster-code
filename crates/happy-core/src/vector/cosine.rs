@@ -37,7 +37,8 @@ impl VectorIndex {
             return Vec::new();
         }
 
-        let mut scores: Vec<(String, f32)> = self.vectors
+        let mut scores: Vec<(String, f32)> = self
+            .vectors
             .iter()
             .filter_map(|(id, vec)| {
                 let sim = cosine_similarity(query, vec, query_norm);

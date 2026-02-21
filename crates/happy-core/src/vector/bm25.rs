@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// BM25 keyword search index.
 #[derive(Debug, Clone, Serialize, Deserialize)]

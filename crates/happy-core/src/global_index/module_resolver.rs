@@ -12,11 +12,7 @@ impl<'a> ModuleResolver<'a> {
     }
 
     /// Resolve an import to a file path.
-    pub fn resolve_import(
-        &self,
-        import: &ImportInfo,
-        current_file: &str,
-    ) -> Option<String> {
+    pub fn resolve_import(&self, import: &ImportInfo, current_file: &str) -> Option<String> {
         if import.level > 0 {
             self.resolve_relative_import(import, current_file)
         } else {
@@ -47,11 +43,7 @@ impl<'a> ModuleResolver<'a> {
         None
     }
 
-    fn resolve_relative_import(
-        &self,
-        import: &ImportInfo,
-        current_file: &str,
-    ) -> Option<String> {
+    fn resolve_relative_import(&self, import: &ImportInfo, current_file: &str) -> Option<String> {
         let current_module = self.index.file_to_module(current_file)?;
 
         // Go up `level` packages
@@ -84,7 +76,9 @@ mod tests {
     #[test]
     fn test_resolve_absolute() {
         let index = GlobalIndex::new();
-        index.module_map.insert("os.path".into(), "/usr/lib/os/path.py".into());
+        index
+            .module_map
+            .insert("os.path".into(), "/usr/lib/os/path.py".into());
 
         let resolver = ModuleResolver::new(&index);
         let import = ImportInfo {
@@ -104,8 +98,14 @@ mod tests {
     #[test]
     fn test_resolve_relative() {
         let index = GlobalIndex::new();
-        index.module_map.insert("app.services.auth".into(), "/repo/app/services/auth.py".into());
-        index.file_map.insert("/repo/app/services/views.py".into(), "app.services.views".into());
+        index.module_map.insert(
+            "app.services.auth".into(),
+            "/repo/app/services/auth.py".into(),
+        );
+        index.file_map.insert(
+            "/repo/app/services/views.py".into(),
+            "app.services.views".into(),
+        );
 
         let resolver = ModuleResolver::new(&index);
         let import = ImportInfo {

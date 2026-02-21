@@ -1,11 +1,11 @@
-pub mod parser;
-pub mod indexer;
-pub mod graph;
 pub mod global_index;
-pub mod vector;
+pub mod graph;
+pub mod indexer;
+pub mod parser;
 pub mod store;
-pub mod watcher;
 pub mod utils;
+pub mod vector;
+pub mod watcher;
 
 #[cfg(feature = "python")]
 mod py;

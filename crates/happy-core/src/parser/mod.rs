@@ -1,10 +1,10 @@
-pub mod languages;
 pub mod calls;
 pub mod imports;
+pub mod languages;
 
+use languages::SupportedLanguage;
 use std::collections::HashMap;
 use tree_sitter::{Parser as TsParser, Tree};
-use languages::SupportedLanguage;
 
 /// Thread-safe parser that caches language instances.
 pub struct Parser {
@@ -22,7 +22,8 @@ impl Parser {
     pub fn parse(&mut self, code: &str, language: SupportedLanguage) -> Option<Tree> {
         let parser = self.parsers.entry(language).or_insert_with(|| {
             let mut p = TsParser::new();
-            p.set_language(&language.grammar()).expect("Failed to set language");
+            p.set_language(&language.grammar())
+                .expect("Failed to set language");
             p
         });
         parser.parse(code.as_bytes(), None)

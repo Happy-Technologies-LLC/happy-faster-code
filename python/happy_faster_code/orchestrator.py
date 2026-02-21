@@ -11,6 +11,9 @@ def run(
     model: str | None = None,
     max_depth: int = 3,
     verbose: bool = True,
+    elements_file: str | None = None,
+    graph_rpc_endpoint: str | None = None,
+    graph_rpc_token: str | None = None,
 ) -> str:
     """Run the RLM agent with HappyRepo tools against a repository.
 
@@ -20,6 +23,10 @@ def run(
         model: LiteLLM model string override. If None, reads from config.
         max_depth: Maximum recursion depth for sub-queries.
         verbose: Whether to print intermediate steps.
+        elements_file: Optional path to serialized CodeElement snapshot
+            exported by the Rust runtime to avoid re-indexing from disk.
+        graph_rpc_endpoint: Optional host:port for local graph RPC.
+        graph_rpc_token: Auth token for local graph RPC.
 
     Returns:
         The agent's final response string.
@@ -47,8 +54,31 @@ def run(
 
             os.environ.setdefault("OPENAI_API_KEY", config["api_key"])
 
-    # Build repo and tools
-    repo = HappyRepo(path)
+    # Build repo and tools.
+    # Priority:
+    #   1. Live graph RPC bridge (no reconstruction)
+    #   2. Serialized elements snapshot (fast reconstruction)
+    #   3. Filesystem re-index from path (fallback)
+    if graph_rpc_endpoint and graph_rpc_token:
+        from happy_faster_code.graph_rpc import GraphRpcRepo
+
+        try:
+            repo = GraphRpcRepo(
+                graph_rpc_endpoint,
+                graph_rpc_token,
+                path=path,
+            )
+            # Verify RPC reachability once up front so we can fallback cleanly.
+            repo.stats()
+        except Exception:
+            if elements_file:
+                repo = HappyRepo.from_elements_file(elements_file, path)
+            else:
+                repo = HappyRepo(path)
+    elif elements_file:
+        repo = HappyRepo.from_elements_file(elements_file, path)
+    else:
+        repo = HappyRepo(path)
     namespace = build_rlm_namespace(repo, path)
     system_prompt = build_system_prompt(repo)
 
@@ -93,6 +123,21 @@ def main():
     parser.add_argument(
         "--json", action="store_true", help="Output structured JSON"
     )
+    parser.add_argument(
+        "--elements-file",
+        default=None,
+        help="Optional path to serialized CodeElement snapshot from Rust runtime.",
+    )
+    parser.add_argument(
+        "--graph-rpc-endpoint",
+        default=None,
+        help="Optional host:port for live graph RPC bridge from Rust runtime.",
+    )
+    parser.add_argument(
+        "--graph-rpc-token",
+        default=None,
+        help="Auth token for --graph-rpc-endpoint.",
+    )
 
     args = parser.parse_args()
 
@@ -102,6 +147,9 @@ def main():
         model=args.model,
         max_depth=args.max_depth,
         verbose=not args.quiet,
+        elements_file=args.elements_file,
+        graph_rpc_endpoint=args.graph_rpc_endpoint,
+        graph_rpc_token=args.graph_rpc_token,
     )
 
     if args.json:

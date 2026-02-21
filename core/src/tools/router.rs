@@ -48,8 +48,7 @@ impl ToolRouter {
         dynamic_tools: &[DynamicToolSpec],
         code_graph_repo: crate::tools::handlers::SharedRepoHandle,
     ) -> Self {
-        let builder =
-            build_specs(config, mcp_tools, app_tools, dynamic_tools, code_graph_repo);
+        let builder = build_specs(config, mcp_tools, app_tools, dynamic_tools, code_graph_repo);
         let (specs, registry) = builder.build();
 
         Self { registry, specs }

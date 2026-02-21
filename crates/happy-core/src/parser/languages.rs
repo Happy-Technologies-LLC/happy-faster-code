@@ -76,9 +76,18 @@ mod tests {
 
     #[test]
     fn test_from_extension() {
-        assert_eq!(SupportedLanguage::from_extension("foo.py"), Some(SupportedLanguage::Python));
-        assert_eq!(SupportedLanguage::from_extension("bar.ts"), Some(SupportedLanguage::TypeScript));
-        assert_eq!(SupportedLanguage::from_extension("baz.rs"), Some(SupportedLanguage::Rust));
+        assert_eq!(
+            SupportedLanguage::from_extension("foo.py"),
+            Some(SupportedLanguage::Python)
+        );
+        assert_eq!(
+            SupportedLanguage::from_extension("bar.ts"),
+            Some(SupportedLanguage::TypeScript)
+        );
+        assert_eq!(
+            SupportedLanguage::from_extension("baz.rs"),
+            Some(SupportedLanguage::Rust)
+        );
         assert_eq!(SupportedLanguage::from_extension("qux.txt"), None);
     }
 
