@@ -58,6 +58,9 @@ All standard Codex tools are available: `shell`, `apply_patch`, `read_file`, `li
 ## Quick Start
 
 ```bash
+# Install Python package (includes RLM dependencies automatically)
+pip install .
+
 # Build
 cargo build --release
 
@@ -71,6 +74,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 The code graph indexes your working directory automatically in the background on session start. No separate indexing step required.
+`rlms` and `litellm` are installed as package dependencies, so no separate manual install is required for `rlm_analyze`.
 
 ## Supported Languages
 
@@ -182,6 +186,8 @@ happycode builds on several excellent open-source projects:
 
 - **[Codex](https://github.com/openai/codex)** by OpenAI — The foundation: production Rust terminal agent, event-driven architecture, ratatui TUI, sandboxed execution
 - **[FastCode](https://github.com/Zeeshan-Hamid/FastCode)** by Zeeshan Hamid — The original Python code indexing and graph approach that inspired happy-core's architecture
+- **[RLMs](https://pypi.org/project/rlms/)** — Recursive orchestration runtime used by `rlm_analyze`
+- **[LiteLLM](https://github.com/BerriAI/litellm)** — Provider abstraction layer used by the RLM orchestrator
 - **[opencode](https://github.com/nicholasgriffintn/opencode)** — Rust LLM client patterns, provider trait abstraction
 
 ## License

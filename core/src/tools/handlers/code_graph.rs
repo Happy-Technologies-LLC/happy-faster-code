@@ -344,7 +344,7 @@ impl CodeGraphDispatcher {
             .map_err(|err| {
                 FunctionCallError::RespondToModel(format!(
                     "Failed to invoke RLM orchestrator: {err}. \
-                     Ensure happy-faster-code Python package is installed: \
+                     Ensure happycode Python package is installed: \
                      pip install -e . (from the repo root)"
                 ))
             })?;
